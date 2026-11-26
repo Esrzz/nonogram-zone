@@ -1,13 +1,15 @@
 import { getSettings, subscribeSettings } from './settingsStore'
 
 /**
- * Tamaño de la interfaz (Configuración › Jugabilidad): funciona como el zoom del navegador.
+ * Tema de colores (data-theme en <html>) y tamaño de la interfaz (Configuración › Jugabilidad): funciona como el zoom del navegador.
  * Se aplica `zoom` a toda la página y se publican `--vw` y `--vh` (1% del ancho/alto REAL de la ventana,
  * ya "des-zoomeados") que el CSS usa en lugar de `vw`/`vh`, para que el tablero siga ocupando la pantalla.
  */
 function apply() {
-  const z = getSettings().gameplay.uiScale / 100
+  const gp = getSettings().gameplay
+  const z = gp.uiScale / 100
   const root = document.documentElement
+  root.dataset.theme = gp.theme
   if (z === 1) root.style.removeProperty('zoom')
   else root.style.setProperty('zoom', String(z))
   root.style.setProperty('--vw', `${window.innerWidth / z / 100}px`)

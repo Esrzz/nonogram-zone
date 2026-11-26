@@ -1,7 +1,43 @@
 import { useEffect, useRef } from 'react'
+import { getSettings, subscribeSettings } from '../lib/settingsStore'
 
 // Fondo de Gaming Zone (igual que en Monopolio del janeo): manchas de luz violeta que derivan solas, cortinas tipo
 // aurora que se curvan hacia el mouse y una estela que lo sigue con retraso.
+// Modo oscuro: mismas formas y movimiento, pero en grises y blancos sobre negro.
+
+type Palette = {
+  bg: string
+  blobs: string[]
+  blobAlpha: number
+  curtains: string[]
+  curtainAlpha: number
+  trailWide: string
+  trailCore: string
+  head: string
+}
+
+const PALETTES: Record<'gz' | 'dark', Palette> = {
+  gz: {
+    bg: '#0a0517',
+    blobs: [], // usa el color original de cada mancha
+    blobAlpha: 1,
+    curtains: [],
+    curtainAlpha: 1,
+    trailWide: '124,58,237',
+    trailCore: '232,121,249',
+    head: '167,139,250',
+  },
+  dark: {
+    bg: '#000000',
+    blobs: ['150,150,150', '230,230,230', '90,90,90', '200,200,200', '255,255,255'],
+    blobAlpha: 0.62,
+    curtains: ['230,230,230', '255,255,255', '170,170,170', '210,210,210'],
+    curtainAlpha: 0.8,
+    trailWide: '170,170,170',
+    trailCore: '255,255,255',
+    head: '235,235,235',
+  },
+}
 
 const BLOBS = [
   { x: 0.18, y: 0.22, r: 0.55, c: '109,40,217', a: 0.36, sx: 0.00018, sy: 0.00013, p: 0.0, depth: 0.1 },
@@ -45,8 +81,9 @@ export default function AuroraBackground() {
     const trail = Array.from({ length: TRAIL_LEN }, () => ({ x: 0, y: 0 }))
 
     const draw = (t: number) => {
+      const pal = PALETTES[getSettings().gameplay.theme]
       ctx.globalCompositeOperation = 'source-over'
-      ctx.fillStyle = '#0a0517'
+      ctx.fillStyle = pal.bg
       ctx.fillRect(0, 0, w, h)
       ctx.globalCompositeOperation = 'lighter'
 
@@ -56,20 +93,23 @@ export default function AuroraBackground() {
       const my = mouse.y * h
       const big = Math.max(w, h)
 
-      for (const b of BLOBS) {
+      BLOBS.forEach((b, bi) => {
+        const col = pal.blobs[bi] ?? b.c
+        const alpha = b.a * pal.blobAlpha
         const bx = (b.x + Math.sin(t * b.sx + b.p) * 0.08 + (mouse.x - 0.5) * b.depth) * w
         const by = (b.y + Math.cos(t * b.sy + b.p) * 0.08 + (mouse.y - 0.5) * b.depth) * h
         const r = b.r * big
         const g = ctx.createRadialGradient(bx, by, 0, bx, by, r)
-        g.addColorStop(0, `rgba(${b.c},${b.a})`)
-        g.addColorStop(1, `rgba(${b.c},0)`)
+        g.addColorStop(0, `rgba(${col},${alpha})`)
+        g.addColorStop(1, `rgba(${col},0)`)
         ctx.fillStyle = g
         ctx.fillRect(bx - r, by - r, r * 2, r * 2)
-      }
+      })
 
       ctx.lineJoin = 'round'
       ctx.lineCap = 'round'
-      for (const c of CURTAINS) {
+      CURTAINS.forEach((c, ci) => {
+        const ccol = pal.curtains[ci] ?? c.c
         const pts: number[] = []
         for (let x = -40; x <= w + 40; x += 30) {
           let y =
@@ -85,10 +125,10 @@ export default function AuroraBackground() {
           ctx.moveTo(pts[0], pts[1])
           for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1])
           ctx.lineWidth = lw * c.w
-          ctx.strokeStyle = `rgba(${c.c},${al * c.op})`
+          ctx.strokeStyle = `rgba(${ccol},${al * c.op * pal.curtainAlpha})`
           ctx.stroke()
         }
-      }
+      })
 
       if (reduce) return
 
@@ -104,17 +144,17 @@ export default function AuroraBackground() {
         ctx.moveTo(trail[i - 1].x, trail[i - 1].y)
         ctx.lineTo(trail[i].x, trail[i].y)
         ctx.lineWidth = 44 * k
-        ctx.strokeStyle = `rgba(124,58,237,${0.1 * k})`
+        ctx.strokeStyle = `rgba(${pal.trailWide},${0.1 * k})`
         ctx.stroke()
         ctx.lineWidth = 12 * k
-        ctx.strokeStyle = `rgba(232,121,249,${0.22 * k})`
+        ctx.strokeStyle = `rgba(${pal.trailCore},${0.22 * k})`
         ctx.stroke()
       }
       const hx = trail[0].x
       const hy = trail[0].y
       const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 150)
-      g.addColorStop(0, 'rgba(167,139,250,0.2)')
-      g.addColorStop(1, 'rgba(167,139,250,0)')
+      g.addColorStop(0, `rgba(${pal.head},0.2)`)
+      g.addColorStop(1, `rgba(${pal.head},0)`)
       ctx.fillStyle = g
       ctx.fillRect(hx - 150, hy - 150, 300, 300)
     }
@@ -144,6 +184,8 @@ export default function AuroraBackground() {
     }
 
     resize()
+    // con movimiento reducido no hay animación: se redibuja al cambiar el tema
+    const unsub = subscribeSettings(() => { if (reduce) draw(0) })
     window.addEventListener('resize', resize)
     if (!reduce) {
       window.addEventListener('pointermove', onMove, { passive: true })
@@ -151,6 +193,7 @@ export default function AuroraBackground() {
     }
 
     return () => {
+      unsub()
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       window.removeEventListener('pointermove', onMove)

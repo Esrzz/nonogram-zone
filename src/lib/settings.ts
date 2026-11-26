@@ -12,6 +12,12 @@ export const UI_SCALE_MIN = 75
 export const UI_SCALE_MAX = 125
 export const UI_SCALE_STEP = 5
 
+export type Theme = 'gz' | 'dark'
+export const THEMES: { id: Theme; label: string }[] = [
+  { id: 'gz', label: 'Modo GZ' },
+  { id: 'dark', label: 'Modo oscuro' },
+]
+
 export interface Settings {
   v: 1
   audio: {
@@ -26,13 +32,15 @@ export interface Settings {
     hotkeysEnabled: boolean
     /** Mostrar las instrucciones (pistas) de los dos lados del tablero: izquierda y derecha, arriba y abajo */
     bothSideClues: boolean
+    /** Colores: Modo GZ (violeta) o Modo oscuro (negro y blanco) */
+    theme: Theme
   }
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   v: 1,
   audio: { musicVolume: 0.5, sfxVolume: 0.7, trackFile: null },
-  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false },
+  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false, theme: 'gz' },
 }
 
 export const cloneSettings = (s: Settings): Settings => ({
@@ -62,6 +70,7 @@ export function sanitizeSettings(input: unknown): Settings {
       uiScale: scale,
       hotkeysEnabled: typeof gp.hotkeysEnabled === 'boolean' ? gp.hotkeysEnabled : d.gameplay.hotkeysEnabled,
       bothSideClues: typeof gp.bothSideClues === 'boolean' ? gp.bothSideClues : d.gameplay.bothSideClues,
+      theme: gp.theme === 'dark' || gp.theme === 'gz' ? gp.theme : d.gameplay.theme,
     },
   }
 }

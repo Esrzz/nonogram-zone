@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from '../lib/settings'
+import { THEMES, UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from '../lib/settings'
 import { updateSettings, useSettings } from '../lib/settingsStore'
 import { useFullscreen } from '../lib/useFullscreen'
 import HotkeysModal from './HotkeysModal'
@@ -193,6 +193,25 @@ export default function SettingsModal({
                     Volver a 100%
                   </button>
                   <span>{UI_SCALE_MAX}%</span>
+                </div>
+              </div>
+
+              <div className="setting-row">
+                <label className="setting-label">
+                  Colores
+                  <span className="setting-value">{THEMES.find((t) => t.id === gameplay.theme)?.label}</span>
+                </label>
+                <div className="seg" role="group" aria-label="Colores">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={gameplay.theme === t.id}
+                      onClick={() => updateSettings((s) => { s.gameplay.theme = t.id })}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
