@@ -5,7 +5,11 @@ Misma estética que [Gaming Zone](https://github.com/Esrzz/gaming-zone) y Monopo
 
 ## Estado
 - Login simple: el nombre se cruza con los perfiles de Discord del Worker de Gaming Zone (`/api/members`); si no responde se usa `src/data/avatars.json`.
-- Tablero vacío para ajustar estilos (clic = rellenar, clic derecho = X, arrastrar = pintar).
+- Tablero de creación: se pinta la imagen (clic = rellenar, clic derecho = X, arrastrar = pintar) y las pistas se calculan en vivo.
+- Barra lateral con el % pintado y el rango recomendado (45–65%).
+- Botón "Verificar solución": solver por líneas + búsqueda (`src/lib/nonogram.ts`); dice si es única, múltiple o sin solución y si se resuelve solo por lógica.
+- Ajustes (⚙): video (pantalla completa), audio (volúmenes y canciones en `public/audio/Music`), jugabilidad (tamaño de interfaz, instrucciones de ambos lados, atajos sin definir).
+- `npm test` corre los tests del solver; `npx vite-node scripts/density.ts` mide qué % pintado da puzzles de solución única.
 
 ## Desarrollo
 ```

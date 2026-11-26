@@ -4,9 +4,10 @@ interface Props {
   name: string
   avatar: string | null
   onLogout: () => void
+  onSettings: () => void
 }
 
-export default function Header({ name, avatar, onLogout }: Props) {
+export default function Header({ name, avatar, onLogout, onSettings }: Props) {
   return (
     <header className="topbar">
       <div className="topbar-brand">
@@ -15,6 +16,9 @@ export default function Header({ name, avatar, onLogout }: Props) {
       <div className="topbar-right">
         <button className="link" onClick={onLogout}>
           Cambiar perfil
+        </button>
+        <button className="topbar-settings" onClick={onSettings} aria-label="Configuraciones">
+          ⚙
         </button>
         <div className="topbar-user">
           <Avatar name={name} src={avatar} size={32} />
