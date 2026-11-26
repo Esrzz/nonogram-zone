@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { filledCount, gridClues } from '../lib/nonogram'
 import type { Clue } from '../lib/nonogram'
 import { useSettings } from '../lib/settingsStore'
@@ -80,7 +81,11 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   const [off, setOff] = useState({ x: 0, y: 0 })
   const [vs, setVs] = useState({ w: 0, h: 0 }) // tamaño del recuadro visible (px de maquetación)
   const [panning, setPanning] = useState(false)
-  const pan = useRef<{ id: number } | null>(null)
+  const pan = useRef<{ id: number; x: number; y: number } | null>(null)
+  // Modo mover (como "Move mode" de otros sitios): el clic izquierdo arrastra el tablero en vez de pintar
+  const [moveMode, setMoveMode] = useState(false)
+  // Trazo en curso: sirve para mostrar cuántas celdas lleva la línea que se está pintando
+  const [stroke, setStroke] = useState<{ start: number; cur: number; v: Cell; x: number; y: number } | null>(null)
   const live = useRef({ zoom: 1, off: { x: 0, y: 0 }, vs: { w: 0, h: 0 } })
   live.current = { zoom, off, vs }
 
@@ -126,18 +131,27 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   }, [])
 
   const startPan = (e: React.PointerEvent) => {
-    if (e.button !== 1) return
+    // Rueda apretada, o clic izquierdo en modo mover
+    if (!(e.button === 1 || (moveMode && e.button === 0))) return
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
-    pan.current = { id: e.pointerId }
+    pan.current = { id: e.pointerId, x: e.clientX, y: e.clientY }
     paint.current = null
+    setStroke(null)
     setPanning(true)
   }
+  // El desplazamiento se calcula con la diferencia de posición del puntero (no con movementX, que cambia
+  // según la escala de pantalla del sistema) y se pasa a píxeles de maquetación: el tablero sigue al mouse 1 a 1.
   const movePan = (e: React.PointerEvent) => {
-    if (!pan.current || pan.current.id !== e.pointerId) return
+    const st = pan.current
+    if (!st || st.id !== e.pointerId) return
     const k = ratio()
     const { zoom: z, off: o, vs: v } = live.current
-    setOff(clampOff({ x: o.x + e.movementX / k, y: o.y + e.movementY / k }, z, v.w, v.h))
+    const dx = (e.clientX - st.x) / k
+    const dy = (e.clientY - st.y) / k
+    st.x = e.clientX
+    st.y = e.clientY
+    setOff(clampOff({ x: o.x + dx, y: o.y + dy }, z, v.w, v.h))
   }
   const endPan = (e: React.PointerEvent) => {
     if (!pan.current || pan.current.id !== e.pointerId) return
@@ -163,17 +177,46 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   }
 
   const down = (e: React.PointerEvent, i: number) => {
-    if (e.button === 1) return // la rueda apretada mueve la vista, no pinta
+    if (e.button === 1 || moveMode) return // la rueda apretada (o el modo mover) mueve la vista, no pinta
     e.preventDefault()
     const t: Cell = e.button === 2 ? 2 : 1
     const v: Cell = cells[i] === t ? 0 : t
     paint.current = v
+    setStroke({ start: i, cur: i, v, x: e.clientX, y: e.clientY })
     apply(i, v)
   }
   const enter = (i: number) => {
-    if (paint.current !== null) apply(i, paint.current)
+    if (paint.current === null) return
+    apply(i, paint.current)
+    setStroke((st) => (st ? { ...st, cur: i } : st))
   }
-  const stop = () => { paint.current = null }
+  const stop = () => {
+    paint.current = null
+    setStroke(null)
+  }
+  const move = (e: React.PointerEvent) => {
+    movePan(e)
+    if (paint.current !== null) setStroke((st) => (st ? { ...st, x: e.clientX, y: e.clientY } : st))
+  }
+
+  // Indicador sobre el mouse: largo de la línea que se está pintando (en la fila o columna del trazo)
+  let tip: string | null = null
+  if (stroke) {
+    const dr = Math.floor(stroke.cur / size) - Math.floor(stroke.start / size)
+    const dc = (stroke.cur % size) - (stroke.start % size)
+    const horizontal = Math.abs(dc) >= Math.abs(dr)
+    const step = horizontal ? 1 : size
+    const inLine = (j: number) => (horizontal ? Math.floor(j / size) === Math.floor(stroke.cur / size) : j % size === stroke.cur % size)
+    if (stroke.v === 0) {
+      const n = Math.max(Math.abs(dr), Math.abs(dc)) + 1
+      if (n >= 2) tip = `−${n}`
+    } else {
+      let n = 1
+      for (let j = stroke.cur - step; j >= 0 && inLine(j) && cells[j] === stroke.v; j -= step) n++
+      for (let j = stroke.cur + step; j < total && inLine(j) && cells[j] === stroke.v; j += step) n++
+      if (n >= 2) tip = `${stroke.v === 2 ? '×' : ''}${n}`
+    }
+  }
 
   const sepR = (c: number) => (c + 1) % 5 === 0 && c !== size - 1
   const sepB = (r: number) => (r + 1) % 5 === 0 && r !== size - 1
@@ -194,7 +237,10 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
           <strong>Zoom ×{zoom.toFixed(1)}</strong>
           <button className="link" onClick={resetView} disabled={zoom === 1}>Restablecer vista</button>
         </div>
-        <p className="ng-zoom-hint">Rueda: acercar y alejar · Rueda apretada y arrastrar: mover</p>
+        <button type="button" className={`btn ghost ng-move${moveMode ? ' on' : ''}`} aria-pressed={moveMode} onClick={() => setMoveMode((m) => !m)}>
+          ✥ Modo mover: {moveMode ? 'activado' : 'apagado'}
+        </button>
+        <p className="ng-zoom-hint">Rueda: acercar y alejar · Rueda apretada y arrastrar: mover. Con el modo mover, el clic izquierdo también mueve el tablero.</p>
       </>
     ),
   }
@@ -221,10 +267,10 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
 
       <div
         ref={boardRef}
-        className={`ng${both ? ' both' : ''}${panning ? ' panning' : ''}${solved ? ' solved' : ''}`}
+        className={`ng${both ? ' both' : ''}${panning ? ' panning' : ''}${moveMode ? ' move-mode' : ''}${solved ? ' solved' : ''}`}
         style={{ ['--n' as string]: size, ['--slots' as string]: slots, ['--tracks' as string]: size + slots * (both ? 2 : 1), ['--z' as string]: zoom }}
         onPointerDown={startPan}
-        onPointerMove={movePan}
+        onPointerMove={move}
         onPointerUp={(e) => { endPan(e); stop() }}
         onPointerCancel={endPan}
         onPointerLeave={stop}
@@ -289,6 +335,13 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
       </div>
 
       <div className="ng-panel">{children(ctx)}</div>
+      {stroke && tip &&
+        createPortal(
+          <div className="ng-tip" style={{ left: stroke.x / ratio(), top: stroke.y / ratio() }} aria-hidden="true">
+            {tip}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
