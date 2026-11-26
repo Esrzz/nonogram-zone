@@ -30,9 +30,9 @@ const PALETTES: Record<'gz' | 'dark', Palette> = {
   dark: {
     bg: '#000000',
     blobs: ['150,150,150', '230,230,230', '90,90,90', '200,200,200', '255,255,255'],
-    blobAlpha: 0.62,
+    blobAlpha: 0.38,
     curtains: ['230,230,230', '255,255,255', '170,170,170', '210,210,210'],
-    curtainAlpha: 0.8,
+    curtainAlpha: 0.5,
     trailWide: '170,170,170',
     trailCore: '255,255,255',
     head: '235,235,235',

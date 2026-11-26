@@ -2,9 +2,17 @@ import { useEffect, useState } from 'react'
 import AuroraBackground from './components/AuroraBackground'
 import Avatar from './components/Avatar'
 import Header from './components/Header'
+import CreatePanel from './components/CreatePanel'
+import Menu from './components/Menu'
 import NonogramBoard from './components/NonogramBoard'
+import SolvePanel from './components/SolvePanel'
 import SettingsModal from './components/SettingsModal'
 import { useMembers } from './lib/members'
+import { generatePuzzle } from './lib/generator'
+import type { Puzzle } from './lib/generator'
+import { gridClues } from './lib/nonogram'
+import { loadSaved, persistSaved, profileKey, stringToCells } from './lib/saved'
+import type { SavedNonogram } from './lib/saved'
 import { findAvatar, NAME_MAX, suggest, validName } from './lib/profile'
 import { play as playSfx } from './lib/sfx'
 import { useAudio } from './lib/useAudio'
@@ -15,8 +23,23 @@ interface Profile {
   avatar: string | null
 }
 
+type Screen = 'menu' | 'create' | 'solve'
+
+/** Puzzle en pantalla en el modo resolver; `n` cambia con cada uno para reiniciar el tablero. */
+interface Playing extends Puzzle {
+  n: number
+  label: string
+}
+
+const SIZE_CREATE = 10
+
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [screen, setScreen] = useState<Screen>('menu')
+  const [saved, setSaved] = useState<SavedNonogram[]>([])
+  // Dibujo a cargar en el editor; `n` cambia para reiniciar el tablero con ese dibujo
+  const [editor, setEditor] = useState<{ n: number; size: number; cells?: Uint8Array }>({ n: 0, size: SIZE_CREATE })
+  const [playing, setPlaying] = useState<Playing | null>(null)
   const [draft, setDraft] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { members } = useMembers()
@@ -40,8 +63,39 @@ export default function App() {
     e.preventDefault()
     if (!validName(draft)) return
     const m = findAvatar(draft, members)
-    setProfile({ id: m?.id ?? null, name: m?.name ?? draft.trim(), avatar: m?.avatar ?? null })
+    const p = { id: m?.id ?? null, name: m?.name ?? draft.trim(), avatar: m?.avatar ?? null }
+    setProfile(p)
+    setSaved(loadSaved(profileKey(p)))
+    setScreen('menu')
     startMusic() // la música arranca con la primera interacción
+  }
+
+  const key = profile ? profileKey(profile) : ''
+
+  const saveNonogram = (item: Omit<SavedNonogram, 'id' | 'createdAt'>): boolean => {
+    const next = [{ ...item, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, createdAt: Date.now() }, ...saved]
+    if (!persistSaved(key, next)) return false
+    setSaved(next)
+    return true
+  }
+  const deleteNonogram = (id: string) => {
+    const next = saved.filter((s) => s.id !== id)
+    persistSaved(key, next)
+    setSaved(next)
+  }
+  const editNonogram = (item: SavedNonogram) => {
+    setEditor((e) => ({ n: e.n + 1, size: item.size, cells: stringToCells(item.cells) }))
+    setScreen('create')
+  }
+  const newRandom = (size: number) => {
+    setPlaying((p) => ({ ...generatePuzzle(size), n: (p?.n ?? 0) + 1, label: 'Aleatorio' }))
+    setScreen('solve')
+  }
+  const playSaved = (item: SavedNonogram) => {
+    const solution = stringToCells(item.cells)
+    const { rows, cols } = gridClues(solution, item.size, item.size)
+    setPlaying((p) => ({ size: item.size, solution, rows, cols, logic: item.logic, n: (p?.n ?? 0) + 1, label: item.name }))
+    setScreen('solve')
   }
 
   return (
@@ -53,14 +107,54 @@ export default function App() {
             name={profile.name}
             avatar={profile.avatar}
             onSettings={() => setSettingsOpen(true)}
+            onMenu={screen === 'menu' ? undefined : () => setScreen('menu')}
             onLogout={() => {
               setProfile(null)
               setDraft('')
+              setScreen('menu')
+              setPlaying(null)
             }}
           />
-          <main className="stage play">
-            <NonogramBoard size={10} />
-          </main>
+          {screen === 'menu' && (
+            <Menu
+              savedCount={saved.length}
+              onCreate={() => setScreen('create')}
+              onSolve={() => (playing ? setScreen('solve') : newRandom(10))}
+            />
+          )}
+          {screen === 'create' && (
+            <main className="stage play">
+              <NonogramBoard key={`c${editor.n}`} size={editor.size} initialCells={editor.cells}>
+                {(ctx) => (
+                  <CreatePanel
+                    ctx={ctx}
+                    size={editor.size}
+                    saved={saved}
+                    onSave={saveNonogram}
+                    onLoad={editNonogram}
+                    onPlay={playSaved}
+                    onDelete={deleteNonogram}
+                  />
+                )}
+              </NonogramBoard>
+            </main>
+          )}
+          {screen === 'solve' && playing && (
+            <main className="stage play">
+              <NonogramBoard key={`s${playing.n}`} size={playing.size} target={{ rows: playing.rows, cols: playing.cols }}>
+                {(ctx) => (
+                  <SolvePanel
+                    ctx={ctx}
+                    size={playing.size}
+                    label={playing.label}
+                    solution={playing.solution}
+                    logic={playing.logic}
+                    onNew={newRandom}
+                  />
+                )}
+              </NonogramBoard>
+            </main>
+          )}
         </>
       ) : (
         <main className="stage">

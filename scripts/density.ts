@@ -1,5 +1,6 @@
 // Mide qué porcentaje de celdas pintadas da puzzles de solución única.
 // Uso: npx vite-node scripts/density.ts
+import { blobImage } from '../src/lib/generator'
 import { gridClues, solve } from '../src/lib/nonogram'
 
 let seed = 20261125
@@ -8,26 +9,7 @@ const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32)
 /** Ruido independiente: cada celda se pinta con probabilidad p. */
 const noise = (n: number, p: number) => Uint8Array.from({ length: n * n }, () => (rnd() < p ? 1 : 0))
 
-/** Imagen "con formas": ruido suavizado por vecinos, ajustado al % pedido. */
-function blobs(n: number, p: number): Uint8Array {
-  let f = Float32Array.from({ length: n * n }, () => rnd())
-  for (let it = 0; it < 2; it++) {
-    const g = new Float32Array(n * n)
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-      let s = 0, c = 0
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const yy = y + dy, xx = x + dx
-        if (yy >= 0 && yy < n && xx >= 0 && xx < n) { s += f[yy * n + xx]; c++ }
-      }
-      g[y * n + x] = s / c
-    }
-    f = g
-  }
-  const order = Array.from(f.keys()).sort((a, b) => f[a] - f[b])
-  const out = new Uint8Array(n * n)
-  for (let i = 0; i < Math.round(p * n * n); i++) out[order[i]] = 1
-  return out
-}
+const blobs = (n: number, p: number) => blobImage(n, p, rnd)
 
 const SAMPLES = 300
 const sizes = [5, 10, 15, 20]

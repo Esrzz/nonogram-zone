@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { gridClues, solve } from '../lib/nonogram'
-import type { SolveResult } from '../lib/nonogram'
+import type { ReactNode } from 'react'
+import { filledCount, gridClues } from '../lib/nonogram'
+import type { Clue } from '../lib/nonogram'
 import { useSettings } from '../lib/settingsStore'
 
-type Cell = 0 | 1 | 2 // 0 vacío, 1 relleno, 2 marca X
+export type Cell = 0 | 1 | 2 // 0 vacío, 1 relleno, 2 marca X
 
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -15,30 +16,37 @@ function clampOff(o: { x: number; y: number }, z: number, w: number, h: number) 
   return { x: clamp(o.x, w - w * z, 0), y: clamp(o.y, h - h * z, 0) }
 }
 
-/** Rango de pintado recomendado (% de celdas) para que el puzzle suela tener solución única. Medido con scripts/density.ts. */
-const GOOD_MIN = 45
-const GOOD_MAX = 65
+/** Rango de pintado (% de celdas) para que un puzzle creado suela tener solución única. Medido con scripts/density.ts. */
+export const GOOD_MIN = 45
+export const GOOD_MAX = 65
 
-interface Props {
-  size?: number
+const sameClues = (a: Clue[], b: Clue[]) => a.length === b.length && a.every((c, i) => c.length === b[i].length && c.every((n, k) => n === b[i][k]))
+
+/** Todo lo que un panel lateral necesita saber del tablero. */
+export interface BoardCtx {
+  cells: Cell[]
+  /** Pistas que se muestran (las del puzzle, o las calculadas del dibujo en creación) */
+  clues: { rows: Clue[]; cols: Clue[] }
+  /** Pistas calculadas de lo pintado */
+  painted: { rows: Clue[]; cols: Clue[] }
+  filled: number
+  total: number
+  pct: number
+  /** Solo en modo resolver: lo pintado cumple todas las pistas */
+  solved: boolean
+  clear: () => void
+  /** Reemplaza el dibujo (celdas 0/1) */
+  fill: (cells: ArrayLike<number>) => void
+  zoomBlock: ReactNode
 }
 
-type Report =
-  | { kind: 'empty' }
-  | { kind: 'unique'; logic: boolean; ms: number }
-  | { kind: 'multiple'; diff: number; ms: number }
-  | { kind: 'none' }
-  | { kind: 'unknown' }
-
-function describe(r: SolveResult, ms: number, filled: number): Report {
-  if (filled === 0) return { kind: 'empty' }
-  if (r.aborted) return { kind: 'unknown' }
-  if (r.count === 0) return { kind: 'none' }
-  if (r.count === 1) return { kind: 'unique', logic: r.logicOnly, ms }
-  const [a, b] = r.solutions
-  let diff = 0
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff++
-  return { kind: 'multiple', diff, ms }
+interface Props {
+  size: number
+  /** Dibujo inicial (celdas 0/1) */
+  initialCells?: ArrayLike<number>
+  /** Si se pasa, es un puzzle a resolver: las pistas son fijas y no se calculan del dibujo */
+  target?: { rows: Clue[]; cols: Clue[] }
+  children: (ctx: BoardCtx) => ReactNode
 }
 
 function ClueList({ clue }: { clue: number[] }) {
@@ -53,14 +61,17 @@ function ClueList({ clue }: { clue: number[] }) {
 }
 
 /**
- * Tablero de creación: lo que se pinta define la imagen y las pistas se calculan en vivo.
+ * Tablero de nonogramas, para crear (las pistas salen de lo pintado) o resolver (las pistas son fijas).
  * Clic = rellenar, clic derecho = marca X, arrastrar = pintar.
+ * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
-export default function NonogramBoard({ size = 10 }: Props) {
+export default function NonogramBoard({ size, initialCells, target, children }: Props) {
   const both = useSettings().gameplay.bothSideClues
-  const [cells, setCells] = useState<Cell[]>(() => Array(size * size).fill(0))
-  const [report, setReport] = useState<Report | null>(null)
+  const [cells, setCells] = useState<Cell[]>(() =>
+    initialCells ? Array.from(initialCells, (c) => (c === 1 ? 1 : 0) as Cell) : Array<Cell>(size * size).fill(0),
+  )
   const paint = useRef<Cell | null>(null)
+  const slots = Math.ceil(size / 2)
 
   // Vista: zoom con la rueda y desplazamiento arrastrando con la rueda apretada (botón central)
   const boardRef = useRef<HTMLDivElement>(null)
@@ -138,27 +149,24 @@ export default function NonogramBoard({ size = 10 }: Props) {
     setOff({ x: 0, y: 0 })
   }
   const cur = clampOff(off, zoom, vs.w, vs.h)
-  const slots = Math.ceil(size / 2)
 
-  const clues = useMemo(() => gridClues(cells.map((c) => (c === 1 ? 1 : 0)), size, size), [cells, size])
+  const painted = useMemo(() => gridClues(cells.map((c) => (c === 1 ? 1 : 0)), size, size), [cells, size])
+  const clues = target ?? painted
   const filled = useMemo(() => cells.filter((c) => c === 1).length, [cells])
   const total = size * size
-  const pct = (filled / total) * 100
+  const goal = target ? Math.max(1, filledCount(target.rows)) : total
+  const pct = Math.min(100, (filled / goal) * 100)
+  const solved = !!target && filled > 0 && sameClues(painted.rows, target.rows) && sameClues(painted.cols, target.cols)
 
-  const set = (next: Cell[]) => {
-    setCells(next)
-    setReport(null) // el resultado anterior ya no corresponde al dibujo
-  }
   const apply = (i: number, v: Cell) => {
-    if (cells[i] === v) return
-    set(cells.map((c, k) => (k === i ? v : c)))
+    setCells((prev) => (prev[i] === v ? prev : prev.map((c, k) => (k === i ? v : c))))
   }
 
   const down = (e: React.PointerEvent, i: number) => {
     if (e.button === 1) return // la rueda apretada mueve la vista, no pinta
     e.preventDefault()
-    const target: Cell = e.button === 2 ? 2 : 1
-    const v: Cell = cells[i] === target ? 0 : target
+    const t: Cell = e.button === 2 ? 2 : 1
+    const v: Cell = cells[i] === t ? 0 : t
     paint.current = v
     apply(i, v)
   }
@@ -167,36 +175,53 @@ export default function NonogramBoard({ size = 10 }: Props) {
   }
   const stop = () => { paint.current = null }
 
-  const verify = () => {
-    const t0 = performance.now()
-    const r = solve(clues.rows, clues.cols)
-    setReport(describe(r, Math.round(performance.now() - t0), filled))
-  }
-
   const sepR = (c: number) => (c + 1) % 5 === 0 && c !== size - 1
   const sepB = (r: number) => (r + 1) % 5 === 0 && r !== size - 1
+
+  const ctx: BoardCtx = {
+    cells,
+    clues,
+    painted,
+    filled,
+    total,
+    pct,
+    solved,
+    clear: () => setCells(Array<Cell>(total).fill(0)),
+    fill: (c) => setCells(Array.from(c, (v) => (v === 1 ? 1 : 0) as Cell)),
+    zoomBlock: (
+      <>
+        <div className="ng-zoom">
+          <strong>Zoom ×{zoom.toFixed(1)}</strong>
+          <button className="link" onClick={resetView} disabled={zoom === 1}>Restablecer vista</button>
+        </div>
+        <p className="ng-zoom-hint">Rueda: acercar y alejar · Rueda apretada y arrastrar: mover</p>
+      </>
+    ),
+  }
 
   return (
     <div className="ng-layout">
       <div
         className="ng-meter"
         role="progressbar"
-        aria-label="Porcentaje pintado del tablero"
+        aria-label={target ? 'Celdas pintadas respecto de las que pide el puzzle' : 'Porcentaje pintado del tablero'}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pct)}
       >
         <span className="ng-meter-pct">{pct >= 100 ? 'Completo' : `${Math.round(pct)}%`}</span>
         <div className={`ng-meter-track${pct >= 100 ? ' full' : ''}`}>
-          <div className="ng-meter-band" style={{ bottom: `${GOOD_MIN}%`, height: `${GOOD_MAX - GOOD_MIN}%` }} title={`Rango recomendado: ${GOOD_MIN}–${GOOD_MAX}%`} />
+          {!target && (
+            <div className="ng-meter-band" style={{ bottom: `${GOOD_MIN}%`, height: `${GOOD_MAX - GOOD_MIN}%` }} title={`Rango recomendado: ${GOOD_MIN}–${GOOD_MAX}%`} />
+          )}
           <div className="ng-meter-fill" style={{ height: `${pct}%` }} />
         </div>
-        <span className="ng-meter-sub">{filled}/{total}</span>
+        <span className="ng-meter-sub">{filled}/{goal}</span>
       </div>
 
       <div
         ref={boardRef}
-        className={`ng${both ? ' both' : ''}${panning ? ' panning' : ''}`}
+        className={`ng${both ? ' both' : ''}${panning ? ' panning' : ''}${solved ? ' solved' : ''}`}
         style={{ ['--n' as string]: size, ['--slots' as string]: slots, ['--tracks' as string]: size + slots * (both ? 2 : 1), ['--z' as string]: zoom }}
         onPointerDown={startPan}
         onPointerMove={movePan}
@@ -263,53 +288,7 @@ export default function NonogramBoard({ size = 10 }: Props) {
         )}
       </div>
 
-      <div className="ng-panel">
-        <h2>Creación</h2>
-        <p className="muted">Pintá la imagen: las pistas se calculan solas. Verificá si el puzzle tiene solución única.</p>
-        <p className={`ng-range${pct >= GOOD_MIN && pct <= GOOD_MAX ? ' ok' : ''}`}>
-          Pintado recomendado: {GOOD_MIN}–{GOOD_MAX}% · ahora {Math.round(pct)}%
-        </p>
-        <div className="ng-zoom">
-          <strong>Zoom ×{zoom.toFixed(1)}</strong>
-          <button className="link" onClick={resetView} disabled={zoom === 1}>Restablecer vista</button>
-        </div>
-        <p className="ng-zoom-hint">Rueda: acercar y alejar · Rueda apretada y arrastrar: mover</p>
-        <button className="btn primary" onClick={verify}>Verificar solución</button>
-        <button className="btn ghost" disabled={filled === 0 && cells.every((c) => c === 0)} onClick={() => set(Array(total).fill(0))}>
-          Limpiar tablero
-        </button>
-        {report && (
-          <div className={`ng-report ${report.kind}`} role="status">
-            {report.kind === 'empty' && <p>Pintá al menos una celda para poder verificar.</p>}
-            {report.kind === 'unique' && (
-              <>
-                <strong>✔ Tiene solución única</strong>
-                <p>{report.logic ? 'Se resuelve solo por lógica, sin adivinar.' : 'Es única, pero hay que probar y descartar para llegar: dificultad alta.'}</p>
-                <span className="muted">{report.ms} ms</span>
-              </>
-            )}
-            {report.kind === 'multiple' && (
-              <>
-                <strong>✖ Tiene varias soluciones</strong>
-                <p>No sirve como puzzle: hay otra solución que difiere en {report.diff} celdas. Cambiá alguna celda para desambiguar.</p>
-                <span className="muted">{report.ms} ms</span>
-              </>
-            )}
-            {report.kind === 'none' && (
-              <>
-                <strong>✖ No tiene solución</strong>
-                <p>Las pistas se contradicen.</p>
-              </>
-            )}
-            {report.kind === 'unknown' && (
-              <>
-                <strong>? No se pudo decidir</strong>
-                <p>Es demasiado complejo para el límite de tiempo.</p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      <div className="ng-panel">{children(ctx)}</div>
     </div>
   )
 }
