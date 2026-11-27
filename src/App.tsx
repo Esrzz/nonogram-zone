@@ -6,12 +6,15 @@ import CreatePanel from './components/CreatePanel'
 import Menu from './components/Menu'
 import NonogramBoard from './components/NonogramBoard'
 import SolvePanel from './components/SolvePanel'
+import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
 import { useMembers } from './lib/members'
 import { checkSession, consumeLoginFragment, LOGIN_ERRORS, loginUrl, readToken, sessionFromToken, storeToken } from './lib/auth'
 import { generatePuzzle, monthlyPuzzle, worldRacePuzzle, WORLD_RACE_EDITION } from './lib/generator'
 import type { Puzzle } from './lib/generator'
 import { gridClues } from './lib/nonogram'
+import { loadHistory, persistHistory } from './lib/history'
+import type { HistoryEntry, HistoryKind } from './lib/history'
 import { loadSaved, persistSaved, profileKey, stringToCells } from './lib/saved'
 import type { SavedNonogram } from './lib/saved'
 import { findAvatar, NAME_MAX, suggest, validName } from './lib/profile'
@@ -24,12 +27,13 @@ interface Profile {
   avatar: string | null
 }
 
-type Screen = 'menu' | 'create' | 'solve'
+type Screen = 'menu' | 'create' | 'solve' | 'history'
 
 /** Puzzle en pantalla en el modo resolver; `n` cambia con cada uno para reiniciar el tablero. */
 interface Playing extends Puzzle {
   n: number
   label: string
+  kind: HistoryKind
   edition?: boolean
 }
 
@@ -45,6 +49,7 @@ export default function App() {
   const [playing, setPlaying] = useState<Playing | null>(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
   // Sesión con Discord (vía el Worker de Gaming Zone); si no hay, se puede entrar escribiendo un nombre
   const [token, setToken] = useState<string | null>(() => readToken())
   const [loginError, setLoginError] = useState<string | null>(null)
@@ -115,6 +120,14 @@ export default function App() {
   }
 
   const key = profile ? profileKey(profile) : ''
+  useEffect(() => {
+    setHistory(key ? loadHistory(key) : [])
+  }, [key])
+  const addHistory = (e: Omit<HistoryEntry, 'id' | 'at'>) => {
+    const next = [{ ...e, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: Date.now() }, ...history]
+    persistHistory(key, next)
+    setHistory(next)
+  }
 
   const saveNonogram = (item: Omit<SavedNonogram, 'id' | 'createdAt'>): boolean => {
     const next = [{ ...item, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, createdAt: Date.now() }, ...saved]
@@ -132,24 +145,24 @@ export default function App() {
     setScreen('create')
   }
   // Generar tableros grandes tarda un rato: se muestra "Generando…" y se deja pintar antes de calcular
-  const start = (make: () => Puzzle, label: string, edition = false) => {
+  const start = (make: () => Puzzle, label: string, kind: HistoryKind) => {
     setBusy(true)
     setTimeout(() => {
       const puzzle = make()
-      setPlaying((p) => ({ ...puzzle, n: (p?.n ?? 0) + 1, label, edition }))
+      setPlaying((p) => ({ ...puzzle, n: (p?.n ?? 0) + 1, label, kind, edition: kind === 'monthly' || kind === 'world' }))
       setScreen('solve')
       setBusy(false)
     }, 30)
   }
-  const newRandom = (size: number) => start(() => generatePuzzle(size), 'Aleatorio')
+  const newRandom = (size: number) => start(() => generatePuzzle(size), 'Aleatorio', 'random')
   const now = new Date()
   const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`
-  const playMonthly = () => start(() => monthlyPuzzle(now.getFullYear(), now.getMonth() + 1), `Mensual · ${monthLabel}`, true)
-  const playWorld = () => start(() => worldRacePuzzle(), `Carrera mundial · edición ${WORLD_RACE_EDITION}`, true)
+  const playMonthly = () => start(() => monthlyPuzzle(now.getFullYear(), now.getMonth() + 1), `Mensual · ${monthLabel}`, 'monthly')
+  const playWorld = () => start(() => worldRacePuzzle(), `Carrera mundial · edición ${WORLD_RACE_EDITION}`, 'world')
   const playSaved = (item: SavedNonogram) => {
     const solution = stringToCells(item.cells)
     const { rows, cols } = gridClues(solution, item.size, item.size)
-    setPlaying((p) => ({ size: item.size, solution, rows, cols, logic: item.logic, n: (p?.n ?? 0) + 1, label: item.name }))
+    setPlaying((p) => ({ size: item.size, solution, rows, cols, logic: item.logic, n: (p?.n ?? 0) + 1, label: item.name, kind: 'saved' }))
     setScreen('solve')
   }
 
@@ -180,6 +193,8 @@ export default function App() {
               onMonthly={playMonthly}
               onWorld={playWorld}
               monthLabel={monthLabel}
+              onHistory={() => setScreen('history')}
+              solvedCount={history.length}
             />
           )}
           {screen === 'create' && (
@@ -199,6 +214,16 @@ export default function App() {
               </NonogramBoard>
             </main>
           )}
+          {screen === 'history' && (
+            <HistoryPanel
+              name={profile.name}
+              list={history}
+              onClear={() => {
+                persistHistory(key, [])
+                setHistory([])
+              }}
+            />
+          )}
           {screen === 'solve' && playing && (
             <main className="stage play">
               <NonogramBoard key={`s${playing.n}`} size={playing.size} target={{ rows: playing.rows, cols: playing.cols }}>
@@ -211,6 +236,7 @@ export default function App() {
                     logic={playing.logic}
                     onNew={newRandom}
                     edition={playing.edition}
+                    onSolved={(ms) => addHistory({ label: playing.label, size: playing.size, kind: playing.kind, ms })}
                   />
                 )}
               </NonogramBoard>

@@ -5,10 +5,12 @@ interface Props {
   onMonthly: () => void
   onWorld: () => void
   monthLabel: string
+  onHistory: () => void
+  solvedCount: number
 }
 
 /** Pantalla que aparece al elegir perfil: crear o resolver nonogramas. */
-export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld, monthLabel }: Props) {
+export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld, monthLabel, onHistory, solvedCount }: Props) {
   return (
     <main className="stage">
       <div className="brandline">
@@ -41,6 +43,9 @@ export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld
           <span className="menu-meta">Edición 1</span>
         </button>
       </div>
+      <button className="btn ghost hist-btn" onClick={onHistory}>
+        📜 Mi historial · {solvedCount} resuelto{solvedCount === 1 ? '' : 's'}
+      </button>
     </main>
   )
 }

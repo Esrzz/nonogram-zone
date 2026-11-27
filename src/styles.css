@@ -426,3 +426,19 @@ body {
 a.btn.discord { text-decoration: none; }
 .or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.85rem; }
 .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* ---------- Historial ---------- */
+.hist-stage { grid-template-columns: min(640px, 100%); align-content: start; padding-top: 24px; overflow-y: auto; }
+.hist { width: 100%; max-height: calc(100 * var(--vh) - 120px); overflow-y: auto; scrollbar-width: thin; }
+.hist-best { display: flex; flex-wrap: wrap; gap: 8px; }
+.hist-chip { display: grid; gap: 1px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(var(--c1), 0.08); min-width: 92px; }
+.hist-chip strong { font: 700 0.95rem var(--display); }
+.hist-chip span { font: 700 1.1rem var(--display); color: var(--orchid); font-variant-numeric: tabular-nums; }
+.hist-chip small { color: var(--muted); font-size: 0.72rem; }
+.hist-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+.hist-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(var(--c1), 0.06); }
+.hist-time { font: 700 1.05rem var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hist-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hist-confirm .btn { padding: 0.45rem 1rem; }
+.hist-btn { margin-top: -6px; }
+[data-theme='dark'] .hist-chip, [data-theme='dark'] .hist-list li { background: #000; }

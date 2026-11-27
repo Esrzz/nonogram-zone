@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BoardCtx } from './NonogramBoard'
 
 export const SOLVE_SIZES = [5, 10, 15, 20, 25] as const
@@ -14,6 +14,8 @@ interface Props {
   onNew: (size: number) => void
   /** Edición fija (mensual, carrera mundial): sin "mostrar solución" ni nuevo aleatorio */
   edition?: boolean
+  /** Se llama una vez al resolverlo (sin usar "Mostrar solución"), con el tiempo en ms */
+  onSolved?: (ms: number) => void
 }
 
 const fmt = (ms: number) => {
@@ -22,7 +24,7 @@ const fmt = (ms: number) => {
 }
 
 /** Panel del modo resolver: cronómetro, aviso de resuelto, mostrar solución y nuevo aleatorio. */
-export default function SolvePanel({ ctx, size, label, solution, logic, onNew, edition }: Props) {
+export default function SolvePanel({ ctx, size, label, solution, logic, onNew, edition, onSolved }: Props) {
   const { filled, solved } = ctx
   const [start, setStart] = useState<number | null>(null)
   const [now, setNow] = useState(0)
@@ -45,6 +47,14 @@ export default function SolvePanel({ ctx, size, label, solution, logic, onNew, e
     const id = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(id)
   }, [start, end])
+
+  const reported = useRef(false)
+  useEffect(() => {
+    if (end === null || gaveUp || reported.current) return
+    reported.current = true
+    onSolved?.(Math.max(0, end - (start ?? end)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [end, gaveUp])
 
   const elapsed = start === null ? 0 : Math.max(0, (end ?? now) - start)
 
