@@ -20,9 +20,24 @@ export function lineClue(line: ArrayLike<number>): Clue {
 /** Pistas de filas y columnas de una cuadrícula (rows × cols, fila por fila) de celdas 0/1. */
 export function gridClues(cells: ArrayLike<number>, rows: number, cols: number): { rows: Clue[]; cols: Clue[] } {
   const r: Clue[] = []
-  const c: Clue[] = []
-  for (let y = 0; y < rows; y++) r.push(lineClue(Array.from({ length: cols }, (_, x) => cells[y * cols + x])))
-  for (let x = 0; x < cols; x++) c.push(lineClue(Array.from({ length: rows }, (_, y) => cells[y * cols + x])))
+  const c: Clue[] = Array.from({ length: cols }, () => [])
+  const run = new Int32Array(cols)
+  for (let y = 0; y < rows; y++) {
+    const row: Clue = []
+    let n = 0
+    for (let x = 0; x < cols; x++) {
+      if (cells[y * cols + x] === 1) {
+        n++
+        run[x]++
+      } else {
+        if (n) { row.push(n); n = 0 }
+        if (run[x]) { c[x].push(run[x]); run[x] = 0 }
+      }
+    }
+    if (n) row.push(n)
+    r.push(row)
+  }
+  for (let x = 0; x < cols; x++) if (run[x]) c[x].push(run[x])
   return { rows: r, cols: c }
 }
 
@@ -184,4 +199,13 @@ export function solve(rows: Clue[], cols: Clue[], opts: { maxNodes?: number } = 
   }
   search(root)
   return { count: Math.min(solutions.length, 2) as 0 | 1 | 2, solutions, logicOnly: false, aborted, nodes }
+}
+
+/**
+ * Solo la lógica por líneas (sin probar y descartar). Devuelve el estado final: -1 en las celdas que la lógica no
+ * pudo decidir, o null si las pistas se contradicen. Si no queda ningún -1, el puzzle es único y se resuelve por lógica.
+ */
+export function logicSolve(rows: Clue[], cols: Clue[]): Int8Array | null {
+  const cells = new Int8Array(rows.length * cols.length).fill(-1)
+  return propagate(cells, rows.length, cols.length, rows, cols) ? cells : null
 }

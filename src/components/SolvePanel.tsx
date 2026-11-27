@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BoardCtx } from './NonogramBoard'
 
-export const SOLVE_SIZES = [5, 10, 15] as const
+export const SOLVE_SIZES = [5, 10, 15, 20, 25] as const
 
 interface Props {
   ctx: BoardCtx
@@ -12,6 +12,8 @@ interface Props {
   solution: Uint8Array
   logic: boolean
   onNew: (size: number) => void
+  /** Edición fija (mensual, carrera mundial): sin "mostrar solución" ni nuevo aleatorio */
+  edition?: boolean
 }
 
 const fmt = (ms: number) => {
@@ -20,7 +22,7 @@ const fmt = (ms: number) => {
 }
 
 /** Panel del modo resolver: cronómetro, aviso de resuelto, mostrar solución y nuevo aleatorio. */
-export default function SolvePanel({ ctx, size, label, solution, logic, onNew }: Props) {
+export default function SolvePanel({ ctx, size, label, solution, logic, onNew, edition }: Props) {
   const { filled, solved } = ctx
   const [start, setStart] = useState<number | null>(null)
   const [now, setNow] = useState(0)
@@ -66,15 +68,20 @@ export default function SolvePanel({ ctx, size, label, solution, logic, onNew }:
         </div>
       )}
       {ctx.zoomBlock}
+      {!edition && (
+        <>
       <h3>Nuevo aleatorio</h3>
-      <div className="seg" role="group" aria-label="Tamaño del nuevo nonograma">
+      <div className="seg wrap" role="group" aria-label="Tamaño del nuevo nonograma">
         {SOLVE_SIZES.map((s) => (
           <button key={s} type="button" aria-pressed={false} onClick={() => onNew(s)}>
             {s}×{s}
           </button>
         ))}
       </div>
+        </>
+      )}
       <button className="btn ghost" onClick={ctx.clear} disabled={solved}>Limpiar tablero</button>
+      {!edition && (
       <button
         className="btn ghost"
         disabled={solved || gaveUp}
@@ -86,6 +93,7 @@ export default function SolvePanel({ ctx, size, label, solution, logic, onNew }:
       >
         Mostrar solución
       </button>
+      )}
     </>
   )
 }

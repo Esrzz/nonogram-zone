@@ -33,43 +33,57 @@
 /* Modo oscuro: negro y blanco, el negro manda. Negro puro, texto casi blanco; los avisos conservan su color (verde / rojo / ámbar). */
 [data-theme='dark'] {
   --void: #000000;
-  --panel: rgba(0, 0, 0, 0.9);
-  --line: rgba(255, 255, 255, 0.24);
+  --panel: #000000;
+  --line: rgba(255, 255, 255, 0.55);
   --text: #ffffff;
-  --muted: #c8c8c8;
-  --violet: #d4d4d4;
-  --violet-deep: #262626;
-  --orchid: #f2f2f2;
+  --muted: #ececec;
+  --violet: #ffffff;
+  --violet-deep: #000000;
+  --orchid: #ffffff;
   --pink: #ffffff;
-  --cyan: #f2f2f2;
+  --cyan: #ffffff;
   --online: #4ade80;
-  --c1: 110, 110, 110; --c2: 160, 160, 160; --c3: 200, 200, 200; --c4: 235, 235, 235; --c5: 20, 20, 20;
+  --c1: 255, 255, 255; --c2: 255, 255, 255; --c3: 255, 255, 255; --c4: 255, 255, 255; --c5: 0, 0, 0;
   --bg1: 0, 0, 0; --bg2: 0, 0, 0;
-  --h1: #6e6e6e; --h2: #a0a0a0; --h3: #c8c8c8;
-  --cyan-rgb: 242, 242, 242; --ok-rgb: 74, 222, 128; --bad-rgb: 255, 138, 136; --warn-rgb: 251, 191, 36;
+  --h1: #ffffff; --h2: #ffffff; --h3: #ffffff;
+  --cyan-rgb: 255, 255, 255; --ok-rgb: 74, 222, 128; --bad-rgb: 255, 138, 136; --warn-rgb: 251, 191, 36;
   --bad: #ff8a88; --warn: #fbbf24; --warn-soft: #fde68a;
-  --t1: #ffffff; --t2: #ececec; --t3: #9a9a9a; --t-shadow: #000000;
-  --glow: rgba(255, 255, 255, 0.35);
+  --t1: #ffffff; --t2: #ffffff; --t3: #ffffff; --t-shadow: #000000;
+  --glow: rgba(255, 255, 255, 0.4);
 }
 [data-theme='dark'] .avatar { filter: grayscale(1); }
-[data-theme='dark'] .card, [data-theme='dark'] .modal, [data-theme='dark'] .ng, [data-theme='dark'] .ng-panel, [data-theme='dark'] .ng-meter, [data-theme='dark'] .topbar { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 30px 80px -40px #000; }
-[data-theme='dark'] .input { background: #000; border-color: rgba(255, 255, 255, 0.3); }
-[data-theme='dark'] .btn.primary { background: #1c1c1c; border-color: rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px -12px #000; }
-[data-theme='dark'] .btn.primary:not(:disabled):hover { background: #2a2a2a; border-color: #fff; }
-[data-theme='dark'] .btn.ghost { background: #0c0c0c; border-color: rgba(255, 255, 255, 0.28); }
-[data-theme='dark'] .btn.ghost:hover { background: #1a1a1a; border-color: rgba(255, 255, 255, 0.6); }
-[data-theme='dark'] .ng-cell { background: #000; border-color: rgba(255, 255, 255, 0.2); }
-[data-theme='dark'] .ng-cell:hover { background: #2a2a2a; }
-[data-theme='dark'] .ng-cell.sep-r { border-right-color: rgba(255, 255, 255, 0.6); }
-[data-theme='dark'] .ng-cell.sep-b { border-bottom-color: rgba(255, 255, 255, 0.6); }
+[data-theme='dark'] .card, [data-theme='dark'] .modal, [data-theme='dark'] .ng, [data-theme='dark'] .ng-panel, [data-theme='dark'] .ng-meter, [data-theme='dark'] .menu-card { background: #000; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+[data-theme='dark'] .topbar { background: linear-gradient(#000, rgba(0, 0, 0, 0)); }
+[data-theme='dark'] .modal-backdrop { background: rgba(0, 0, 0, 0.88); }
+[data-theme='dark'] .brandline h1 { filter: drop-shadow(0 3px 0 #000); -webkit-text-stroke: 0; }
+[data-theme='dark'] .brand-top, [data-theme='dark'] .topbar-brand span { text-shadow: none; }
+[data-theme='dark'] .input { background: #000; border-color: rgba(255, 255, 255, 0.6); }
+[data-theme='dark'] .btn.primary { background: #000; border-color: #fff; box-shadow: none; }
+[data-theme='dark'] .btn.primary:not(:disabled):hover { background: #fff; color: #000; box-shadow: none; }
+[data-theme='dark'] .btn.ghost { background: #000; border-color: rgba(255, 255, 255, 0.6); }
+[data-theme='dark'] .btn.ghost:hover { background: #fff; color: #000; border-color: #fff; }
+[data-theme='dark'] .suggest button, [data-theme='dark'] .track-btn, [data-theme='dark'] .saved-list li, [data-theme='dark'] .hk-list li, [data-theme='dark'] .seg button { background: #000; }
+[data-theme='dark'] .track-btn.active, [data-theme='dark'] .seg button[aria-pressed='true'] { background: #fff; color: #000; border-color: #fff; }
+[data-theme='dark'] .menu-card:hover { border-color: #fff; box-shadow: none; }
+[data-theme='dark'] .vtoggle { background: #000; border-color: rgba(255, 255, 255, 0.7); }
+[data-theme='dark'] .vtoggle::after { background: #ececec; }
+[data-theme='dark'] .vtoggle[aria-checked='true'] { background: #fff; }
+[data-theme='dark'] .vtoggle[aria-checked='true']::after { background: #000; }
+[data-theme='dark'] .slider { background: rgba(255, 255, 255, 0.35); }
+[data-theme='dark'] .track-select .track-list { background: #000; }
+[data-theme='dark'] .ng-cell { background: #000; border-color: rgba(255, 255, 255, 0.3); }
+[data-theme='dark'] .ng-cell:hover { background: #3a3a3a; }
+[data-theme='dark'] .ng-cell.sep-r { border-right-color: rgba(255, 255, 255, 0.85); }
+[data-theme='dark'] .ng-cell.sep-b { border-bottom-color: rgba(255, 255, 255, 0.85); }
 [data-theme='dark'] .ng-clue { color: #fff; }
-[data-theme='dark'] .cn.zero { color: #9a9a9a; opacity: 1; }
-[data-theme='dark'] .ng-meter-track { background: #000; border-color: rgba(255, 255, 255, 0.35); }
+[data-theme='dark'] .cn.zero { color: #ececec; opacity: 0.7; }
+[data-theme='dark'] .ng-meter-track { background: #000; border-color: rgba(255, 255, 255, 0.7); }
+[data-theme='dark'] .ng-meter-fill { background: #fff; box-shadow: none; }
 [data-theme='dark'] .ng-range.ok { color: var(--online); }
-[data-theme='dark'] .ng-report { background: #050505; }
-[data-theme='dark'] .ng-report.unique { background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.7); }
-[data-theme='dark'] .ng-report.multiple, [data-theme='dark'] .ng-report.none { background: rgba(255, 138, 136, 0.1); border-color: rgba(255, 138, 136, 0.7); }
-[data-theme='dark'] .ng-report.unknown, [data-theme='dark'] .ng-report.empty { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.7); }
+[data-theme='dark'] .ng-report { background: #000; }
+[data-theme='dark'] .ng-report.unique { background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.9); }
+[data-theme='dark'] .ng-report.multiple, [data-theme='dark'] .ng-report.none { background: rgba(255, 138, 136, 0.12); border-color: rgba(255, 138, 136, 0.9); }
+[data-theme='dark'] .ng-report.unknown, [data-theme='dark'] .ng-report.empty { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.9); }
 
 * { box-sizing: border-box; margin: 0; }
 html, body { height: 100%; overflow: hidden; }
@@ -252,16 +266,21 @@ body {
 .ng-clues { display: grid; }
 .ng-cols { grid-template-columns: repeat(var(--n), var(--zc)); width: calc(var(--zc) * var(--n)); }
 .ng-rows { grid-template-rows: repeat(var(--n), var(--zc)); height: calc(var(--zc) * var(--n)); }
+.ng { --cuw: var(--cell); --cuh: var(--cell); }
 .ng-clue { display: flex; gap: 2px; font: 700 max(11px, calc(var(--cell) * 0.42)) / 1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
-.ng-clue.col { flex-direction: column; align-items: center; height: calc(var(--cell) * var(--slots)); }
+.ng-clue.col { flex-direction: column; align-items: center; height: calc(var(--cuh) * var(--slots)); }
 .ng-clue.col.end { justify-content: flex-end; }
 .ng-clue.col.start { justify-content: flex-start; }
-.ng-clue.row { flex-direction: row; align-items: center; width: calc(var(--cell) * var(--slots)); }
+.ng-clue.row { flex-direction: row; align-items: center; width: calc(var(--cuw) * var(--slots)); }
 .ng-clue.row.end { justify-content: flex-end; padding-right: 6px; }
 .ng-clue.row.start { justify-content: flex-start; padding-left: 6px; }
 .ng-clue.col .cn { padding: 1px 0; }
 .ng-clue.row .cn { padding: 0 3px; }
 .cn.zero { color: var(--muted); opacity: 0.6; }
+.cn.tap { cursor: pointer; border-radius: 4px; }
+.cn.tap:hover { background: rgba(var(--c4), 0.22); }
+.cn.struck { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.4; }
+[data-theme='dark'] .cn.struck { opacity: 0.55; }
 
 .ng-grid { display: grid; grid-template-columns: repeat(var(--n), var(--zc)); grid-auto-rows: var(--zc); width: calc(var(--zc) * var(--n)); }
 .ng-cell {
@@ -273,7 +292,7 @@ body {
 .ng-cell.on { background: linear-gradient(135deg, var(--h2), var(--violet-deep)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 14px -2px var(--glow); }
 .ng-cell.sep-r { border-right: 2px solid rgba(var(--c4), 0.45); }
 .ng-cell.sep-b { border-bottom: 2px solid rgba(var(--c4), 0.45); }
-[data-theme='dark'] .ng-cell.on { background: #f2f2f2; box-shadow: inset 0 0 0 1px #fff, 0 0 12px -2px rgba(255, 255, 255, 0.35); }
+[data-theme='dark'] .ng-cell.on { background: #fff; box-shadow: none; }
 
 /* Barra lateral de progreso (carga) */
 .ng-meter { width: 64px; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 10px; padding: 16px 10px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
@@ -364,3 +383,31 @@ body {
 .ng-move { padding: 0.55rem 1rem; font-size: 0.9rem; }
 .ng-move.on { background: rgba(var(--c1), 0.4); border-color: rgba(var(--c4), 0.75); }
 [data-theme='dark'] .ng-move.on { background: #fff; color: #000; border-color: #fff; }
+[data-theme='dark'] .ng-tip { color: #fff; }
+
+/* ---------- Tableros grandes (más de 25): celdas diminutas, se usa el zoom ---------- */
+.ng.big {
+  --cuw: 18px; --cuh: 13px;
+  --cell: max(2px, min(
+    calc((100 * var(--vh) - 190px - var(--slots) * var(--cuh) * var(--sides)) / var(--n)),
+    calc((100 * var(--vw) - 640px - var(--slots) * var(--cuw) * var(--sides)) / var(--n))));
+}
+.ng.big .ng-clue { font-size: clamp(1px, calc(var(--zc) * 0.8), 10px); gap: 0; }
+.ng.big .ng-clue.row.end { padding-right: 3px; }
+.ng.big .ng-clue.row.start { padding-left: 3px; }
+.ng.big .ng-clue.row .cn { padding: 0 2px; }
+.ng.big .ng-clue.col .cn { padding: 0; }
+.ng.big .ng-cell { transition: none; font-size: calc(var(--zc) * 0.6); }
+.ng.big .ng-cell.on { background: var(--h2); box-shadow: none; }
+.ng.big.tiny .ng-cell { border-color: transparent; background: rgba(var(--bg1), 0.45); }
+.ng.big.tiny .ng-cell.on { background: var(--h2); }
+.ng.big.tiny .ng-cell.sep-r { border-right-color: rgba(var(--c4), 0.55); border-right-width: 1px; }
+.ng.big.tiny .ng-cell.sep-b { border-bottom-color: rgba(var(--c4), 0.55); border-bottom-width: 1px; }
+[data-theme='dark'] .ng.big .ng-cell.on, [data-theme='dark'] .ng.big.tiny .ng-cell.on { background: #fff; }
+[data-theme='dark'] .ng.big.tiny .ng-cell { background: #000; }
+.ng-grid { contain: layout paint; }
+
+/* Menú con 4 tarjetas y selector de tamaños en 3 columnas */
+.menu-grid { grid-template-columns: repeat(2, minmax(0, 300px)); }
+.seg.wrap { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
+.gen-busy { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(var(--bg1), 0.7); font: 700 1.3rem var(--display); color: var(--text); }

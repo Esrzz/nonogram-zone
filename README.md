@@ -5,7 +5,8 @@ Misma estética que [Gaming Zone](https://github.com/Esrzz/gaming-zone) y Monopo
 
 ## Estado
 - Login simple: el nombre se cruza con los perfiles de Discord del Worker de Gaming Zone (`/api/members`); si no responde se usa `src/data/avatars.json`.
-- Menú al elegir perfil: **Crear nonogramas** o **Resolver nonogramas** (aleatorio 5×5 / 10×10 / 15×15, siempre de solución única; también se pueden resolver los guardados).
+- Menú al elegir perfil: **Crear nonogramas**, **Resolver nonogramas** (aleatorio de 5×5 a 25×25, siempre de solución única y resoluble por lógica; también los guardados), **Mensual 50×50** (uno por mes, igual para todos) y **Carrera mundial 150×150** (edición 1). Los tableros grandes se recorren con zoom (hasta ×16).
+- Pistas: tocá un número para tacharlo; en Ajustes › Jugabilidad, "Tachado automático" tacha una fila/columna cuando lo pintado coincide con sus pistas (aunque no sea la solución).
 - Los nonogramas creados se guardan en el perfil (por ahora en el navegador, `src/lib/saved.ts`; luego irán con la cuenta de Google).
 - Colores: Modo GZ (violeta) y Modo oscuro (negro y blanco), en Ajustes › Jugabilidad.
 - Tablero de creación: se pinta la imagen (clic = rellenar, clic derecho = X, arrastrar = pintar) y las pistas se calculan en vivo.

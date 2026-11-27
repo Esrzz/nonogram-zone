@@ -235,6 +235,25 @@ export default function SettingsModal({
 
               <div className="setting-row">
                 <label className="setting-label">
+                  Tachado automático
+                  <span className="setting-value">{gameplay.autoStrike ? 'Sí' : 'No'}</span>
+                </label>
+                <div className="check" style={{ justifyContent: 'space-between' }}>
+                  <span>Tachar las pistas de una fila o columna cuando lo pintado coincide con ellas</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={gameplay.autoStrike}
+                    aria-label="Tachado automático"
+                    className="vtoggle"
+                    onClick={() => updateSettings((s) => { s.gameplay.autoStrike = !s.gameplay.autoStrike })}
+                  />
+                </div>
+                <p className="setting-hint">También podés tachar un número a mano tocándolo en las pistas.</p>
+              </div>
+
+              <div className="setting-row">
+                <label className="setting-label">
                   Atajos de teclado
                   <span className="setting-value">{gameplay.hotkeysEnabled ? 'Sí' : 'No'}</span>
                 </label>

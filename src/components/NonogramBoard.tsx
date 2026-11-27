@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { filledCount, gridClues } from '../lib/nonogram'
@@ -8,7 +8,10 @@ import { useSettings } from '../lib/settingsStore'
 export type Cell = 0 | 1 | 2 // 0 vacío, 1 relleno, 2 marca X
 
 const ZOOM_MIN = 1
-const ZOOM_MAX = 8
+
+/** Tableros grandes (más de 25): celdas diminutas, pistas con tamaño propio y dibujo más liviano */
+export const BIG_FROM = 25
+const zoomMaxFor = (size: number) => (size > 50 ? 16 : size > BIG_FROM ? 10 : 8)
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -50,16 +53,77 @@ interface Props {
   children: (ctx: BoardCtx) => ReactNode
 }
 
-function ClueList({ clue }: { clue: number[] }) {
-  if (clue.length === 0) return <span className="cn zero">0</span>
-  return (
-    <>
-      {clue.map((n, i) => (
-        <span key={i} className="cn">{n}</span>
-      ))}
-    </>
-  )
+interface LineProps {
+  clue: number[]
+  /** Una letra por número: '1' si está tachado */
+  mask: string
+  axis: 'r' | 'c'
+  idx: number
+  side: 'end' | 'start'
+  onToggle?: (axis: 'r' | 'c', idx: number, k: number) => void
 }
+
+/** Pistas de una fila o columna. Con `onToggle`, tocar un número lo tacha o lo destacha. */
+const ClueLine = memo(function ClueLine({ clue, mask, axis, idx, side, onToggle }: LineProps) {
+  return (
+    <div className={`ng-clue ${axis === 'r' ? 'row' : 'col'} ${side}`}>
+      {clue.length === 0 ? (
+        <span className="cn zero">0</span>
+      ) : (
+        clue.map((n, k) => (
+          <span
+            key={k}
+            className={`cn${mask[k] === '1' ? ' struck' : ''}${onToggle ? ' tap' : ''}`}
+            onClick={onToggle ? () => onToggle(axis, idx, k) : undefined}
+          >
+            {n}
+          </span>
+        ))
+      )}
+    </div>
+  )
+})
+
+/**
+ * Todas las celdas. El marcado se arma una sola vez; cuando cambian las celdas solo se tocan en el DOM las que cambiaron
+ * (con 22 500 celdas, volver a dibujarlas todas con React tardaba cientos de milisegundos por trazo).
+ */
+const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size: number; gridRef: React.RefObject<HTMLDivElement | null> }) {
+  const first = useRef(cells)
+  const prev = useRef<Cell[]>(cells)
+  const markup = useMemo(() => {
+    const init = first.current
+    const out = new Array<React.ReactNode>(init.length)
+    for (let i = 0; i < init.length; i++) {
+      const v = init[i]
+      const r = (i / size) | 0
+      const c = i - r * size
+      const sr = (c + 1) % 5 === 0 && c !== size - 1
+      const sb = (r + 1) % 5 === 0 && r !== size - 1
+      out[i] = (
+        <div key={i} data-i={i} className={`ng-cell${v === 1 ? ' on' : ''}${v === 2 ? ' x' : ''}${sr ? ' sep-r' : ''}${sb ? ' sep-b' : ''}`}>
+          {v === 2 ? '×' : ''}
+        </div>
+      )
+    }
+    return out
+  }, [size])
+  useLayoutEffect(() => {
+    const el = gridRef.current
+    const p = prev.current
+    if (!el || p === cells) return
+    for (let i = 0; i < cells.length; i++) {
+      const v = cells[i]
+      if (p[i] === v) continue
+      const d = el.children[i] as HTMLElement
+      d.classList.toggle('on', v === 1)
+      d.classList.toggle('x', v === 2)
+      d.textContent = v === 2 ? '×' : ''
+    }
+    prev.current = cells
+  }, [cells, gridRef])
+  return <>{markup}</>
+})
 
 /**
  * Tablero de nonogramas, para crear (las pistas salen de lo pintado) o resolver (las pistas son fijas).
@@ -67,16 +131,18 @@ function ClueList({ clue }: { clue: number[] }) {
  * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
 export default function NonogramBoard({ size, initialCells, target, children }: Props) {
-  const both = useSettings().gameplay.bothSideClues
+  const { bothSideClues: both, autoStrike } = useSettings().gameplay
+  const zoomMax = zoomMaxFor(size)
+  const big = size > BIG_FROM
   const [cells, setCells] = useState<Cell[]>(() =>
     initialCells ? Array.from(initialCells, (c) => (c === 1 ? 1 : 0) as Cell) : Array<Cell>(size * size).fill(0),
   )
   const paint = useRef<Cell | null>(null)
-  const slots = Math.ceil(size / 2)
 
   // Vista: zoom con la rueda y desplazamiento arrastrando con la rueda apretada (botón central)
   const boardRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const [off, setOff] = useState({ x: 0, y: 0 })
   const [vs, setVs] = useState({ w: 0, h: 0 }) // tamaño del recuadro visible (px de maquetación)
@@ -119,7 +185,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
       const px = clamp((e.clientX - rect.left) / k, 0, v.w)
       const py = clamp((e.clientY - rect.top) / k, 0, v.h)
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
-      const nz = clamp(z * Math.exp(-dy * 0.0015), ZOOM_MIN, ZOOM_MAX)
+      const nz = clamp(z * Math.exp(-dy * 0.0015), ZOOM_MIN, zoomMax)
       if (nz === z) return
       const wx = (px - o.x) / z
       const wy = (py - o.y) / z
@@ -128,7 +194,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [])
+  }, [zoomMax])
 
   const startPan = (e: React.PointerEvent) => {
     // Rueda apretada, o clic izquierdo en modo mover
@@ -172,8 +238,40 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   const pct = Math.min(100, (filled / goal) * 100)
   const solved = !!target && filled > 0 && sameClues(painted.rows, target.rows) && sameClues(painted.cols, target.cols)
 
+  // Espacios para pistas: en un puzzle, lo que pide la pista más larga; al crear, el máximo posible
+  const slots = target ? Math.max(1, ...target.rows.map((c) => c.length), ...target.cols.map((c) => c.length)) : Math.ceil(size / 2)
+
+  // Pistas tachadas: a mano (tocando el número) y, si está activado, solas cuando la línea pintada coincide con sus pistas
+  const [manual, setManual] = useState<Set<string>>(() => new Set())
+  const toggleStrike = useCallback((axis: 'r' | 'c', idx: number, k: number) => {
+    const key = `${axis}${idx}:${k}`
+    setManual((m) => {
+      const n = new Set(m)
+      if (!n.delete(key)) n.add(key)
+      return n
+    })
+  }, [])
+  const maskFor = (axis: 'r' | 'c', idx: number, clue: number[], done: boolean) =>
+    clue.map((_, k) => (done || manual.has(`${axis}${idx}:${k}`) ? '1' : '0')).join('')
+  const rowDone = (i: number) => autoStrike && !!target && clues.rows[i].length > 0 && sameClues([painted.rows[i]], [clues.rows[i]])
+  const colDone = (i: number) => autoStrike && !!target && clues.cols[i].length > 0 && sameClues([painted.cols[i]], [clues.cols[i]])
+  const strike = target ? toggleStrike : undefined
+  const rowLines = (side: 'end' | 'start') =>
+    clues.rows.map((c, i) => <ClueLine key={i} clue={c} axis="r" idx={i} side={side} mask={maskFor('r', i, c, rowDone(i))} onToggle={strike} />)
+  const colLines = (side: 'end' | 'start') =>
+    clues.cols.map((c, i) => <ClueLine key={i} clue={c} axis="c" idx={i} side={side} mask={maskFor('c', i, c, colDone(i))} onToggle={strike} />)
+
   const apply = (i: number, v: Cell) => {
-    setCells((prev) => (prev[i] === v ? prev : prev.map((c, k) => (k === i ? v : c))))
+    setCells((prev) => {
+      if (prev[i] === v) return prev
+      const next = prev.slice()
+      next[i] = v
+      return next
+    })
+  }
+  const cellAt = (e: React.PointerEvent) => {
+    const i = (e.target as HTMLElement).dataset?.i
+    return i === undefined ? null : Number(i)
   }
 
   const down = (e: React.PointerEvent, i: number) => {
@@ -218,8 +316,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     }
   }
 
-  const sepR = (c: number) => (c + 1) % 5 === 0 && c !== size - 1
-  const sepB = (r: number) => (r + 1) % 5 === 0 && r !== size - 1
+  const cellPx = vs.w && size ? (vs.w / size) * zoom : 0 // tamaño real de una celda en pantalla
 
   const ctx: BoardCtx = {
     cells,
@@ -267,8 +364,8 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
 
       <div
         ref={boardRef}
-        className={`ng${both ? ' both' : ''}${panning ? ' panning' : ''}${moveMode ? ' move-mode' : ''}${solved ? ' solved' : ''}`}
-        style={{ ['--n' as string]: size, ['--slots' as string]: slots, ['--tracks' as string]: size + slots * (both ? 2 : 1), ['--z' as string]: zoom }}
+        className={`ng${big ? ' big' : ''}${big && cellPx < 7 ? ' tiny' : ''}${both ? ' both' : ''}${panning ? ' panning' : ''}${moveMode ? ' move-mode' : ''}${solved ? ' solved' : ''}`}
+        style={{ ['--n' as string]: size, ['--slots' as string]: slots, ['--tracks' as string]: size + slots * (both ? 2 : 1), ['--sides' as string]: both ? 2 : 1, ['--z' as string]: zoom }}
         onPointerDown={startPan}
         onPointerMove={move}
         onPointerUp={(e) => { endPan(e); stop() }}
@@ -282,36 +379,32 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
         <div className="ng-strip top">
           <div className="ng-strip-in" style={{ transform: `translateX(${cur.x}px)` }}>
             <div className="ng-clues ng-cols">
-              {clues.cols.map((c, i) => <div key={i} className="ng-clue col end"><ClueList clue={c} /></div>)}
+              {colLines('end')}
             </div>
           </div>
         </div>
         <div className="ng-strip left">
           <div className="ng-strip-in" style={{ transform: `translateY(${cur.y}px)` }}>
             <div className="ng-clues ng-rows">
-              {clues.rows.map((c, i) => <div key={i} className="ng-clue row end"><ClueList clue={c} /></div>)}
+              {rowLines('end')}
             </div>
           </div>
         </div>
         <div className="ng-view" ref={viewRef}>
-          <div className="ng-grid" style={{ transform: `translate(${cur.x}px, ${cur.y}px)` }}>
-            {cells.map((v, i) => {
-              const r = Math.floor(i / size)
-              const c = i % size
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  data-nosound
-                  aria-label={`Fila ${r + 1}, columna ${c + 1}`}
-                  className={`ng-cell${v === 1 ? ' on' : ''}${v === 2 ? ' x' : ''}${sepR(c) ? ' sep-r' : ''}${sepB(r) ? ' sep-b' : ''}`}
-                  onPointerDown={(e) => down(e, i)}
-                  onPointerEnter={() => enter(i)}
-                >
-                  {v === 2 ? '×' : ''}
-                </button>
-              )
-            })}
+          <div
+            ref={gridRef}
+            className="ng-grid"
+            style={{ transform: `translate(${cur.x}px, ${cur.y}px)` }}
+            onPointerDown={(e) => {
+              const i = cellAt(e)
+              if (i !== null) down(e, i)
+            }}
+            onPointerOver={(e) => {
+              const i = cellAt(e)
+              if (i !== null) enter(i)
+            }}
+          >
+            <Grid cells={cells} size={size} gridRef={gridRef} />
           </div>
         </div>
         {both && (
@@ -319,14 +412,14 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
             <div className="ng-strip right">
               <div className="ng-strip-in" style={{ transform: `translateY(${cur.y}px)` }}>
                 <div className="ng-clues ng-rows">
-                  {clues.rows.map((c, i) => <div key={i} className="ng-clue row start"><ClueList clue={c} /></div>)}
+                  {rowLines('start')}
                 </div>
               </div>
             </div>
             <div className="ng-strip bottom">
               <div className="ng-strip-in" style={{ transform: `translateX(${cur.x}px)` }}>
                 <div className="ng-clues ng-cols">
-                  {clues.cols.map((c, i) => <div key={i} className="ng-clue col start"><ClueList clue={c} /></div>)}
+                  {colLines('start')}
                 </div>
               </div>
             </div>

@@ -8,7 +8,7 @@ import NonogramBoard from './components/NonogramBoard'
 import SolvePanel from './components/SolvePanel'
 import SettingsModal from './components/SettingsModal'
 import { useMembers } from './lib/members'
-import { generatePuzzle } from './lib/generator'
+import { generatePuzzle, monthlyPuzzle, worldRacePuzzle, WORLD_RACE_EDITION } from './lib/generator'
 import type { Puzzle } from './lib/generator'
 import { gridClues } from './lib/nonogram'
 import { loadSaved, persistSaved, profileKey, stringToCells } from './lib/saved'
@@ -29,9 +29,11 @@ type Screen = 'menu' | 'create' | 'solve'
 interface Playing extends Puzzle {
   n: number
   label: string
+  edition?: boolean
 }
 
 const SIZE_CREATE = 10
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -41,6 +43,7 @@ export default function App() {
   const [editor, setEditor] = useState<{ n: number; size: number; cells?: Uint8Array }>({ n: 0, size: SIZE_CREATE })
   const [playing, setPlaying] = useState<Playing | null>(null)
   const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { members } = useMembers()
   const { prefs, tracks, setMusicVolume, setSfxVolume, setTrack, startMusic } = useAudio()
@@ -87,10 +90,21 @@ export default function App() {
     setEditor((e) => ({ n: e.n + 1, size: item.size, cells: stringToCells(item.cells) }))
     setScreen('create')
   }
-  const newRandom = (size: number) => {
-    setPlaying((p) => ({ ...generatePuzzle(size), n: (p?.n ?? 0) + 1, label: 'Aleatorio' }))
-    setScreen('solve')
+  // Generar tableros grandes tarda un rato: se muestra "Generando…" y se deja pintar antes de calcular
+  const start = (make: () => Puzzle, label: string, edition = false) => {
+    setBusy(true)
+    setTimeout(() => {
+      const puzzle = make()
+      setPlaying((p) => ({ ...puzzle, n: (p?.n ?? 0) + 1, label, edition }))
+      setScreen('solve')
+      setBusy(false)
+    }, 30)
   }
+  const newRandom = (size: number) => start(() => generatePuzzle(size), 'Aleatorio')
+  const now = new Date()
+  const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`
+  const playMonthly = () => start(() => monthlyPuzzle(now.getFullYear(), now.getMonth() + 1), `Mensual · ${monthLabel}`, true)
+  const playWorld = () => start(() => worldRacePuzzle(), `Carrera mundial · edición ${WORLD_RACE_EDITION}`, true)
   const playSaved = (item: SavedNonogram) => {
     const solution = stringToCells(item.cells)
     const { rows, cols } = gridClues(solution, item.size, item.size)
@@ -119,7 +133,10 @@ export default function App() {
             <Menu
               savedCount={saved.length}
               onCreate={() => setScreen('create')}
-              onSolve={() => (playing ? setScreen('solve') : newRandom(10))}
+              onSolve={() => (playing && !playing.edition ? setScreen('solve') : newRandom(10))}
+              onMonthly={playMonthly}
+              onWorld={playWorld}
+              monthLabel={monthLabel}
             />
           )}
           {screen === 'create' && (
@@ -150,6 +167,7 @@ export default function App() {
                     solution={playing.solution}
                     logic={playing.logic}
                     onNew={newRandom}
+                    edition={playing.edition}
                   />
                 )}
               </NonogramBoard>
@@ -198,6 +216,7 @@ export default function App() {
           </form>
         </main>
       )}
+      {busy && <div className="gen-busy" role="status">Generando nonograma…</div>}
       {settingsOpen && (
         <SettingsModal
           musicVolume={prefs.musicVolume}
