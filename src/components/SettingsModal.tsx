@@ -249,7 +249,7 @@ export default function SettingsModal({
                     onClick={() => updateSettings((s) => { s.gameplay.autoStrike = !s.gameplay.autoStrike })}
                   />
                 </div>
-                <p className="setting-hint">También podés tachar un número a mano tocándolo en las pistas.</p>
+                <p className="setting-hint">También podés tachar y destachar un número a mano tocándolo, incluso los tachados solos. Si la fila deja de coincidir, se destachan solos los automáticos.</p>
               </div>
 
               <div className="setting-row">

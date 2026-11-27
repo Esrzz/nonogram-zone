@@ -266,21 +266,31 @@ body {
 .ng-clues { display: grid; }
 .ng-cols { grid-template-columns: repeat(var(--n), var(--zc)); width: calc(var(--zc) * var(--n)); }
 .ng-rows { grid-template-rows: repeat(var(--n), var(--zc)); height: calc(var(--zc) * var(--n)); }
-.ng { --cuw: var(--cell); --cuh: var(--cell); }
-.ng-clue { display: flex; gap: 2px; font: 700 max(11px, calc(var(--cell) * 0.42)) / 1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+.ng { --cuw: max(var(--cell), 26px); --cuh: max(var(--cell), 21px); }
+.ng-clue { display: flex; gap: 3px; font: 700 max(14px, calc(var(--cell) * 0.55)) / 1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
 .ng-clue.col { flex-direction: column; align-items: center; height: calc(var(--cuh) * var(--slots)); }
 .ng-clue.col.end { justify-content: flex-end; }
 .ng-clue.col.start { justify-content: flex-start; }
 .ng-clue.row { flex-direction: row; align-items: center; width: calc(var(--cuw) * var(--slots)); }
 .ng-clue.row.end { justify-content: flex-end; padding-right: 6px; }
 .ng-clue.row.start { justify-content: flex-start; padding-left: 6px; }
-.ng-clue.col .cn { padding: 1px 0; }
-.ng-clue.row .cn { padding: 0 3px; }
-.cn.zero { color: var(--muted); opacity: 0.6; }
+.ng-clue.col .cn { padding: 2px 3px; }
+.ng-clue.row .cn { padding: 3px 4px; }
+.cn { position: relative; border-radius: 5px; background: rgba(var(--c3), 0.2); }
+.cn.zero { color: var(--muted); background: rgba(var(--c3), 0.1); }
 .cn.tap { cursor: pointer; border-radius: 4px; }
 .cn.tap:hover { background: rgba(var(--c4), 0.22); }
-.cn.struck { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.4; }
-[data-theme='dark'] .cn.struck { opacity: 0.55; }
+/* Número tachado: una cruz de esquina a esquina encima */
+.cn.struck { color: var(--muted); background: rgba(var(--c3), 0.08); }
+.cn.struck::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to top right, transparent calc(50% - 1.2px), var(--bad) calc(50% - 1.2px), var(--bad) calc(50% + 1.2px), transparent calc(50% + 1.2px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1.2px), var(--bad) calc(50% - 1.2px), var(--bad) calc(50% + 1.2px), transparent calc(50% + 1.2px));
+}
+[data-theme='dark'] .cn { background: #262626; }
+[data-theme='dark'] .cn.zero { background: #161616; }
+[data-theme='dark'] .cn.struck { background: #141414; color: #bbb; }
 
 .ng-grid { display: grid; grid-template-columns: repeat(var(--n), var(--zc)); grid-auto-rows: var(--zc); width: calc(var(--zc) * var(--n)); }
 .ng-cell {
@@ -387,16 +397,16 @@ body {
 
 /* ---------- Tableros grandes (más de 25): celdas diminutas, se usa el zoom ---------- */
 .ng.big {
-  --cuw: 18px; --cuh: 13px;
+  --cuw: 20px; --cuh: 14px;
   --cell: max(2px, min(
     calc((100 * var(--vh) - 190px - var(--slots) * var(--cuh) * var(--sides)) / var(--n)),
     calc((100 * var(--vw) - 640px - var(--slots) * var(--cuw) * var(--sides)) / var(--n))));
 }
-.ng.big .ng-clue { font-size: clamp(1px, calc(var(--zc) * 0.8), 10px); gap: 0; }
+.ng.big .ng-clue { font-size: clamp(1px, calc(var(--zc) * 0.8), 11px); gap: 1px; }
 .ng.big .ng-clue.row.end { padding-right: 3px; }
 .ng.big .ng-clue.row.start { padding-left: 3px; }
-.ng.big .ng-clue.row .cn { padding: 0 2px; }
-.ng.big .ng-clue.col .cn { padding: 0; }
+.ng.big .ng-clue.row .cn { padding: 1px 2px; }
+.ng.big .ng-clue.col .cn { padding: 0 1px; }
 .ng.big .ng-cell { transition: none; font-size: calc(var(--zc) * 0.6); }
 .ng.big .ng-cell.on { background: var(--h2); box-shadow: none; }
 .ng.big.tiny .ng-cell { border-color: transparent; background: rgba(var(--bg1), 0.45); }

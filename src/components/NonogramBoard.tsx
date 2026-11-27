@@ -241,25 +241,54 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   // Espacios para pistas: en un puzzle, lo que pide la pista más larga; al crear, el máximo posible
   const slots = target ? Math.max(1, ...target.rows.map((c) => c.length), ...target.cols.map((c) => c.length)) : Math.ceil(size / 2)
 
-  // Pistas tachadas: a mano (tocando el número) y, si está activado, solas cuando la línea pintada coincide con sus pistas
+  // Pistas tachadas. `manual`: las que tachó la persona. Con el tachado automático, una línea completa (lo pintado coincide
+  // con sus pistas) se tacha sola; `autoOff` guarda las que la persona destachó a pesar de eso. Si la línea deja de cumplirse,
+  // se destachan solas las automáticas (y se olvidan los destachados) pero las manuales quedan.
   const [manual, setManual] = useState<Set<string>>(() => new Set())
-  const toggleStrike = useCallback((axis: 'r' | 'c', idx: number, k: number) => {
-    const key = `${axis}${idx}:${k}`
-    setManual((m) => {
-      const n = new Set(m)
-      if (!n.delete(key)) n.add(key)
+  const [autoOff, setAutoOff] = useState<Set<string>>(() => new Set())
+  const lineDone = (axis: 'r' | 'c', i: number) => {
+    if (!autoStrike || !target) return false
+    const want = axis === 'r' ? clues.rows[i] : clues.cols[i]
+    const got = axis === 'r' ? painted.rows[i] : painted.cols[i]
+    return want.length > 0 && sameClues([got], [want])
+  }
+  const isStruck = (axis: 'r' | 'c', i: number, k: number) => {
+    const key = `${axis}${i}:${k}`
+    return manual.has(key) || (lineDone(axis, i) && !autoOff.has(key))
+  }
+  const toggleStrike = (axis: 'r' | 'c', i: number, k: number) => {
+    const key = `${axis}${i}:${k}`
+    const edit = (set: Set<string>, fn: (n: Set<string>) => void) => {
+      const n = new Set(set)
+      fn(n)
       return n
-    })
-  }, [])
-  const maskFor = (axis: 'r' | 'c', idx: number, clue: number[], done: boolean) =>
-    clue.map((_, k) => (done || manual.has(`${axis}${idx}:${k}`) ? '1' : '0')).join('')
-  const rowDone = (i: number) => autoStrike && !!target && clues.rows[i].length > 0 && sameClues([painted.rows[i]], [clues.rows[i]])
-  const colDone = (i: number) => autoStrike && !!target && clues.cols[i].length > 0 && sameClues([painted.cols[i]], [clues.cols[i]])
-  const strike = target ? toggleStrike : undefined
+    }
+    if (isStruck(axis, i, k)) {
+      setManual((m) => edit(m, (n) => n.delete(key)))
+      if (lineDone(axis, i)) setAutoOff((o) => edit(o, (n) => n.add(key)))
+    } else {
+      setManual((m) => edit(m, (n) => n.add(key)))
+      setAutoOff((o) => (o.has(key) ? edit(o, (n) => n.delete(key)) : o))
+    }
+  }
+  // Una línea que deja de estar completa olvida sus "destachados"
+  useEffect(() => {
+    if (autoOff.size === 0) return
+    const keep = new Set([...autoOff].filter((k) => lineDone(k[0] as 'r' | 'c', Number(k.slice(1).split(':')[0]))))
+    if (keep.size !== autoOff.size) setAutoOff(keep)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painted, autoStrike])
+  const maskFor = (axis: 'r' | 'c', idx: number, clue: number[]) =>
+    clue.map((_, k) => (isStruck(axis, idx, k) ? '1' : '0')).join('')
+  // Función estable (por ref) para que las pistas no se redibujen todas en cada cambio
+  const toggleRef = useRef(toggleStrike)
+  toggleRef.current = toggleStrike
+  const stableToggle = useCallback((axis: 'r' | 'c', i: number, k: number) => toggleRef.current(axis, i, k), [])
+  const strike = target ? stableToggle : undefined
   const rowLines = (side: 'end' | 'start') =>
-    clues.rows.map((c, i) => <ClueLine key={i} clue={c} axis="r" idx={i} side={side} mask={maskFor('r', i, c, rowDone(i))} onToggle={strike} />)
+    clues.rows.map((c, i) => <ClueLine key={i} clue={c} axis="r" idx={i} side={side} mask={maskFor('r', i, c)} onToggle={strike} />)
   const colLines = (side: 'end' | 'start') =>
-    clues.cols.map((c, i) => <ClueLine key={i} clue={c} axis="c" idx={i} side={side} mask={maskFor('c', i, c, colDone(i))} onToggle={strike} />)
+    clues.cols.map((c, i) => <ClueLine key={i} clue={c} axis="c" idx={i} side={side} mask={maskFor('c', i, c)} onToggle={strike} />)
 
   const apply = (i: number, v: Cell) => {
     setCells((prev) => {
