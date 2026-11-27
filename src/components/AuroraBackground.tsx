@@ -63,6 +63,7 @@ const LAYERS: [number, number][] = [
 ]
 
 const TRAIL_LEN = 28
+const RENDER_SCALE = 0.5
 
 export default function AuroraBackground() {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -160,7 +161,8 @@ export default function AuroraBackground() {
     }
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      // El fondo es puro desenfoque y brillo: dibujarlo a la mitad de resolución cuesta 4 veces menos y se ve igual
+      const dpr = RENDER_SCALE
       w = window.innerWidth
       h = window.innerHeight
       canvas.width = Math.round(w * dpr)
