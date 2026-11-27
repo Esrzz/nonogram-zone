@@ -131,7 +131,7 @@ const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size:
  * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
 export default function NonogramBoard({ size, initialCells, target, children }: Props) {
-  const { bothSideClues: both, autoStrike } = useSettings().gameplay
+  const { bothSideClues: both, autoStrike, lockStroke } = useSettings().gameplay
   const zoomMax = zoomMaxFor(size)
   const big = size > BIG_FROM
   const [cells, setCells] = useState<Cell[]>(() =>
@@ -152,6 +152,8 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   const [moveMode, setMoveMode] = useState(false)
   // Trazo en curso: sirve para mostrar cuántas celdas lleva la línea que se está pintando
   const [stroke, setStroke] = useState<{ start: number; cur: number; v: Cell; x: number; y: number } | null>(null)
+  // Trazo bloqueado (solo al resolver): origen, eje elegido y última celda pintada
+  const lock = useRef<{ r0: number; c0: number; axis: 'h' | 'v' | null; last: number } | null>(null)
   const live = useRef({ zoom: 1, off: { x: 0, y: 0 }, vs: { w: 0, h: 0 } })
   live.current = { zoom, off, vs }
 
@@ -309,16 +311,36 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     const t: Cell = e.button === 2 ? 2 : 1
     const v: Cell = cells[i] === t ? 0 : t
     paint.current = v
+    lock.current = target && lockStroke ? { r0: Math.floor(i / size), c0: i % size, axis: null, last: i } : null
     setStroke({ start: i, cur: i, v, x: e.clientX, y: e.clientY })
     apply(i, v)
   }
   const enter = (i: number) => {
     if (paint.current === null) return
+    const lk = lock.current
+    if (lk) {
+      // Se ignora la diagonal: el eje se decide al salir de la primera celda y la celda efectiva es la proyección sobre él
+      const r = Math.floor(i / size)
+      const c = i % size
+      if (r === lk.r0 && c === lk.c0) lk.axis = null
+      else if (lk.axis === null) lk.axis = Math.abs(c - lk.c0) >= Math.abs(r - lk.r0) ? 'h' : 'v'
+      const to = lk.axis === 'v' ? r * size + lk.c0 : lk.axis === 'h' ? lk.r0 * size + c : lk.r0 * size + lk.c0
+      const step = lk.axis === 'v' ? (to > lk.last ? size : -size) : to > lk.last ? 1 : -1
+      // si el mouse salta varias celdas, se rellenan las del medio
+      for (let j = lk.last; ; j += step) {
+        apply(j, paint.current)
+        if (j === to || to === lk.last) break
+      }
+      lk.last = to
+      setStroke((st) => (st ? { ...st, cur: to } : st))
+      return
+    }
     apply(i, paint.current)
     setStroke((st) => (st ? { ...st, cur: i } : st))
   }
   const stop = () => {
     paint.current = null
+    lock.current = null
     setStroke(null)
   }
   const move = (e: React.PointerEvent) => {

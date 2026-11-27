@@ -235,6 +235,25 @@ export default function SettingsModal({
 
               <div className="setting-row">
                 <label className="setting-label">
+                  Bloquear trazo
+                  <span className="setting-value">{gameplay.lockStroke ? 'Sí' : 'No'}</span>
+                </label>
+                <div className="check" style={{ justifyContent: 'space-between' }}>
+                  <span>Al resolver, el trazo queda en la fila o columna de la primera celda pintada (sin diagonales)</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={gameplay.lockStroke}
+                    aria-label="Bloquear trazo"
+                    className="vtoggle"
+                    onClick={() => updateSettings((s) => { s.gameplay.lockStroke = !s.gameplay.lockStroke })}
+                  />
+                </div>
+                <p className="setting-hint">Al crear nonogramas el trazo siempre es libre.</p>
+              </div>
+
+              <div className="setting-row">
+                <label className="setting-label">
                   Tachado automático
                   <span className="setting-value">{gameplay.autoStrike ? 'Sí' : 'No'}</span>
                 </label>

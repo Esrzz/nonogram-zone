@@ -34,6 +34,8 @@ export interface Settings {
     bothSideClues: boolean
     /** Tachar solas las pistas de una fila o columna cuando lo pintado coincide con ellas (aunque no sea la solución) */
     autoStrike: boolean
+    /** Al resolver: el trazo queda en la fila o columna de la primera celda pintada (sin diagonales) */
+    lockStroke: boolean
     /** Colores: Modo GZ (violeta) o Modo oscuro (negro y blanco) */
     theme: Theme
   }
@@ -42,7 +44,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   v: 1,
   audio: { musicVolume: 0.5, sfxVolume: 0.7, trackFile: null },
-  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false, autoStrike: false, theme: 'gz' },
+  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false, autoStrike: false, lockStroke: true, theme: 'gz' },
 }
 
 export const cloneSettings = (s: Settings): Settings => ({
@@ -73,6 +75,7 @@ export function sanitizeSettings(input: unknown): Settings {
       hotkeysEnabled: typeof gp.hotkeysEnabled === 'boolean' ? gp.hotkeysEnabled : d.gameplay.hotkeysEnabled,
       bothSideClues: typeof gp.bothSideClues === 'boolean' ? gp.bothSideClues : d.gameplay.bothSideClues,
       autoStrike: typeof gp.autoStrike === 'boolean' ? gp.autoStrike : d.gameplay.autoStrike,
+      lockStroke: typeof gp.lockStroke === 'boolean' ? gp.lockStroke : d.gameplay.lockStroke,
       theme: gp.theme === 'dark' || gp.theme === 'gz' ? gp.theme : d.gameplay.theme,
     },
   }

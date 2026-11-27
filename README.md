@@ -8,6 +8,7 @@ Misma estética que [Gaming Zone](https://github.com/Esrzz/gaming-zone) y Monopo
 - Menú al elegir perfil: **Crear nonogramas**, **Resolver nonogramas** (aleatorio de 5×5 a 25×25, siempre de solución única y resoluble por lógica; también los guardados), **Mensual 50×50** (uno por mes, igual para todos) y **Carrera mundial 150×150** (edición 1). Los tableros grandes se recorren con zoom (hasta ×16).
 - Perfil: **Mi historial** (botón en el menú) con los nonogramas resueltos (sin usar "Mostrar solución"), tiempo y mejor tiempo por tamaño; se guarda en el navegador por perfil (`nz-history:<perfil>`).
 - Pistas: tocá un número para tacharlo; en Ajustes › Jugabilidad, "Tachado automático" tacha una fila/columna cuando lo pintado coincide con sus pistas (aunque no sea la solución).
+- Trazo bloqueado (Ajustes › Jugabilidad › "Bloquear trazo", activado por defecto): al resolver, lo que pintás queda en la fila o columna de la primera celda, sin diagonales. Al crear el trazo es libre.
 - Los nonogramas creados se guardan en el perfil (por ahora en el navegador, `src/lib/saved.ts`; luego irán con la cuenta de Google).
 - Colores: Modo GZ (violeta) y Modo oscuro (negro y blanco), en Ajustes › Jugabilidad.
 - Tablero de creación: se pinta la imagen (clic = rellenar, clic derecho = X, arrastrar = pintar) y las pistas se calculan en vivo.
