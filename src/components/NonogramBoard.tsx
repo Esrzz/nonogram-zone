@@ -131,7 +131,7 @@ const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size:
  * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
 export default function NonogramBoard({ size, initialCells, target, children }: Props) {
-  const { bothSideClues: both, autoStrike, lockStroke } = useSettings().gameplay
+  const { bothSideClues: both, autoStrike, lockStroke, autoCross } = useSettings().gameplay
   const zoomMax = zoomMaxFor(size)
   const big = size > BIG_FROM
   const [cells, setCells] = useState<Cell[]>(() =>
@@ -248,12 +248,24 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   // se destachan solas las automáticas (y se olvidan los destachados) pero las manuales quedan.
   const [manual, setManual] = useState<Set<string>>(() => new Set())
   const [autoOff, setAutoOff] = useState<Set<string>>(() => new Set())
-  const lineDone = (axis: 'r' | 'c', i: number) => {
-    if (!autoStrike || !target) return false
+  // La línea pintada coincide con sus pistas (aunque no sea la solución)
+  const lineMatches = (axis: 'r' | 'c', i: number) => {
+    if (!target) return false
     const want = axis === 'r' ? clues.rows[i] : clues.cols[i]
     const got = axis === 'r' ? painted.rows[i] : painted.cols[i]
     return want.length > 0 && sameClues([got], [want])
   }
+  const lineDone = (axis: 'r' | 'c', i: number) => autoStrike && lineMatches(axis, i)
+  // Marca con × las celdas vacías de una fila o columna (no toca las pintadas)
+  const crossLine = (axis: 'r' | 'c', i: number) =>
+    setCells((prev) => {
+      let next: Cell[] | null = null
+      for (let j = 0; j < size; j++) {
+        const idx = axis === 'r' ? i * size + j : j * size + i
+        if (prev[idx] === 0) (next ??= prev.slice())[idx] = 2
+      }
+      return next ?? prev
+    })
   const isStruck = (axis: 'r' | 'c', i: number, k: number) => {
     const key = `${axis}${i}:${k}`
     return manual.has(key) || (lineDone(axis, i) && !autoOff.has(key))
@@ -271,8 +283,32 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     } else {
       setManual((m) => edit(m, (n) => n.add(key)))
       setAutoOff((o) => (o.has(key) ? edit(o, (n) => n.delete(key)) : o))
+      // Autocompletar cruces: con todas las pistas tachadas, o al tocar una pista de una línea que ya coincide
+      const line = axis === 'r' ? clues.rows[i] : clues.cols[i]
+      const allStruck = line.every((_, kk) => kk === k || isStruck(axis, i, kk))
+      if (autoCross && (allStruck || lineMatches(axis, i))) crossLine(axis, i)
     }
   }
+  // Con tachado automático + cruces: cuando una línea pasa a coincidir con sus pistas, se completan solas sus cruces
+  const crossed = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!target || !autoStrike || !autoCross) {
+      crossed.current.clear()
+      return
+    }
+    const seen = new Set<string>()
+    for (const axis of ['r', 'c'] as const) {
+      const n = axis === 'r' ? size : size
+      for (let i = 0; i < n; i++) {
+        if (!lineMatches(axis, i)) continue
+        const key = `${axis}${i}`
+        seen.add(key)
+        if (!crossed.current.has(key)) crossLine(axis, i)
+      }
+    }
+    crossed.current = seen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painted, autoStrike, autoCross])
   // Una línea que deja de estar completa olvida sus "destachados"
   useEffect(() => {
     if (autoOff.size === 0) return

@@ -254,6 +254,25 @@ export default function SettingsModal({
 
               <div className="setting-row">
                 <label className="setting-label">
+                  Autocompletar cruces
+                  <span className="setting-value">{gameplay.autoCross ? 'Sí' : 'No'}</span>
+                </label>
+                <div className="check" style={{ justifyContent: 'space-between' }}>
+                  <span>Al tachar todas las pistas de una fila o columna (o tocar una pista de una línea ya completa), se marcan con × las celdas vacías que quedan</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={gameplay.autoCross}
+                    aria-label="Autocompletar cruces"
+                    className="vtoggle"
+                    onClick={() => updateSettings((s) => { s.gameplay.autoCross = !s.gameplay.autoCross })}
+                  />
+                </div>
+                <p className="setting-hint">Con el tachado automático activado, también se completan solas las cruces cuando una línea coincide con sus pistas.</p>
+              </div>
+
+              <div className="setting-row">
+                <label className="setting-label">
                   Tachado automático
                   <span className="setting-value">{gameplay.autoStrike ? 'Sí' : 'No'}</span>
                 </label>
