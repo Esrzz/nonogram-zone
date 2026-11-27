@@ -36,3 +36,9 @@ Para que el Worker acepte esta página hay que aplicar `docs/worker-multi-sitio.
 3. `npx wrangler deploy` en `worker`.
 
 El parche también hace que el Worker responda CORS a esas páginas (hoy `ALLOWED_ORIGIN` permite una sola).
+
+### Contraseña de perfil
+
+La primera vez que alguien entra con Discord, la página le pide crear una contraseña (obligatoria; mínimo 6 caracteres). Después, quien entre solo con el nombre de ese perfil tiene que ponerla; los nombres que nunca entraron con Discord siguen entrando libres. Se puede cambiar en Ajustes › Otros.
+
+La contraseña vive en el Worker de Gaming Zone (`worker/src/passwords.js`, rutas `/nz/pw/*`): solo se guarda un hash PBKDF2 con sal en el KV (`pw:<id>`), con límite de 5 intentos fallidos cada 15 minutos por perfil. No hace falta ningún secreto nuevo, solo `wrangler deploy`.

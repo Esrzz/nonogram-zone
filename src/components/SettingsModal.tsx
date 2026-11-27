@@ -16,6 +16,9 @@ interface Props {
   onSfxVolume: (v: number) => void
   onTrack: (file: string) => void
   onClose: () => void
+  /** Con sesión: permite cambiar la contraseña del perfil */
+  canChangePassword?: boolean
+  onChangePassword?: () => void
 }
 
 export default function SettingsModal({
@@ -27,6 +30,8 @@ export default function SettingsModal({
   onSfxVolume,
   onTrack,
   onClose,
+  canChangePassword,
+  onChangePassword,
 }: Props) {
   const [tab, setTab] = useState<Tab>('audio')
   const [trackOpen, setTrackOpen] = useState(false)
@@ -315,7 +320,15 @@ export default function SettingsModal({
 
           {tab === 'otros' && (
             <div className="settings-section">
-              <p className="muted">Otras opciones: próximamente.</p>
+              {canChangePassword ? (
+                <div className="setting-row">
+                  <label className="setting-label">Contraseña del perfil</label>
+                  <p className="setting-hint">Se pide a quien entre con solo tu nombre, sin Discord.</p>
+                  <button type="button" className="btn ghost" onClick={onChangePassword}>Cambiar contraseña</button>
+                </div>
+              ) : (
+                <p className="muted">Entrá con Discord o con la contraseña de tu perfil para poder cambiarla desde acá.</p>
+              )}
             </div>
           )}
         </div>

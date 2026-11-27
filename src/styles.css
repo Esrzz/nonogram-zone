@@ -440,3 +440,8 @@ a.btn.discord { text-decoration: none; }
 .hist-confirm .btn { padding: 0.45rem 1rem; }
 .hist-btn { margin-top: -6px; }
 [data-theme='dark'] .hist-chip, [data-theme='dark'] .hist-list li { background: #000; }
+
+/* Contraseña de perfil */
+.pw-modal { width: min(440px, 100%); }
+.pw-body { display: grid; gap: 14px; padding: 24px; }
+.pw-body h2 { margin: 0; }

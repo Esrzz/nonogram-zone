@@ -6,9 +6,11 @@ import CreatePanel from './components/CreatePanel'
 import Menu from './components/Menu'
 import NonogramBoard from './components/NonogramBoard'
 import SolvePanel from './components/SolvePanel'
+import PasswordModal from './components/PasswordModal'
 import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
 import { useMembers } from './lib/members'
+import { pwHasPassword, pwLogin, pwStatus } from './lib/password'
 import { checkSession, consumeLoginFragment, LOGIN_ERRORS, loginUrl, readToken, sessionFromToken, storeToken } from './lib/auth'
 import { generatePuzzle, monthlyPuzzle, worldRacePuzzle, WORLD_RACE_EDITION } from './lib/generator'
 import type { Puzzle } from './lib/generator'
@@ -55,6 +57,12 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null)
   const session = sessionFromToken(token)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Contraseña de perfil: se pide al entrar con solo el nombre de un perfil protegido; se crea tras el primer login con Discord
+  const [pwStep, setPwStep] = useState(false)
+  const [pw, setPw] = useState('')
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwBusy, setPwBusy] = useState(false)
+  const [pwModal, setPwModal] = useState<'create' | 'change' | null>(null)
   const { members } = useMembers()
   const { prefs, tracks, setMusicVolume, setSfxVolume, setTrack, startMusic } = useAudio()
 
@@ -108,9 +116,57 @@ export default function App() {
   const match = findAvatar(draft, members)
   const hints = match ? [] : suggest(draft, members)
 
-  const confirm = (e: React.FormEvent) => {
+  // Si la sesión no tiene contraseña todavía, hay que crearla (obligatorio)
+  useEffect(() => {
+    if (!token) return
+    let off = false
+    pwHasPassword(token).then((set) => {
+      if (!off && set === false) setPwModal('create')
+    })
+    return () => {
+      off = true
+    }
+  }, [token])
+
+  const logout = () => {
+    storeToken(null)
+    setToken(null)
+    setProfile(null)
+    setPwModal(null)
+    setSettingsOpen(false)
+  }
+
+  const confirm = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validName(draft)) return
+    if (!validName(draft) || pwBusy) return
+    setPwBusy(true)
+    setPwError(null)
+    if (pwStep) {
+      // Perfil protegido: nombre + contraseña → sesión del Worker
+      const r = await pwLogin(draft.trim(), pw)
+      setPwBusy(false)
+      if (r.ok) {
+        storeToken(r.token)
+        setToken(r.token)
+        setPw('')
+        setPwStep(false)
+        setScreen('menu')
+        startMusic()
+        return
+      }
+      setPwError(
+        r.why === 'locked' ? 'Demasiados intentos. Probá de nuevo en 15 minutos.'
+          : r.why === 'wrong' ? `Contraseña incorrecta${r.left !== undefined ? ` (${r.left} intento${r.left === 1 ? '' : 's'} más)` : ''}.`
+          : 'No se pudo comprobar ahora. Probá de nuevo en un rato.',
+      )
+      return
+    }
+    const st = await pwStatus(draft.trim())
+    setPwBusy(false)
+    if (st?.protected) {
+      setPwStep(true)
+      return
+    }
     const m = findAvatar(draft, members)
     const p = { id: m?.id ?? null, name: m?.name ?? draft.trim(), avatar: m?.avatar ?? null }
     setProfile(p)
@@ -263,7 +319,11 @@ export default function App() {
                 maxLength={NAME_MAX}
                 placeholder="Tu nombre"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value)
+                  setPwStep(false)
+                  setPwError(null)
+                }}
                 aria-label="Nombre de perfil"
               />
             </div>
@@ -282,15 +342,48 @@ export default function App() {
                 ))}
               </ul>
             )}
-            <button className="btn primary" type="submit" disabled={!validName(draft)}>
-              Entrar
+            {pwStep && (
+              <>
+                <p className="muted">Ese perfil tiene contraseña. Escribila para entrar sin Discord.</p>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  placeholder="Contraseña"
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  aria-label="Contraseña del perfil"
+                />
+              </>
+            )}
+            {pwError && <p className="err" role="alert">{pwError}</p>}
+            <button className="btn primary" type="submit" disabled={!validName(draft) || pwBusy || (pwStep && !pw)}>
+              {pwBusy ? 'Comprobando…' : 'Entrar'}
             </button>
           </form>
         </main>
       )}
+      {pwModal && token && (
+        <PasswordModal
+          mode={pwModal}
+          token={token}
+          onDone={() => setPwModal(null)}
+          onCancel={pwModal === 'create' ? logout : () => setPwModal(null)}
+          onSessionLost={() => {
+            logout()
+            setLoginError('Tu sesión venció. Iniciá sesión de nuevo.')
+          }}
+        />
+      )}
       {busy && <div className="gen-busy" role="status">Generando nonograma…</div>}
       {settingsOpen && (
         <SettingsModal
+          canChangePassword={!!token}
+          onChangePassword={() => {
+            setSettingsOpen(false)
+            setPwModal('change')
+          }}
           musicVolume={prefs.musicVolume}
           sfxVolume={prefs.sfxVolume}
           tracks={tracks}
