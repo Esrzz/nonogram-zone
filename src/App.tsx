@@ -8,6 +8,7 @@ import NonogramBoard from './components/NonogramBoard'
 import SolvePanel from './components/SolvePanel'
 import SettingsModal from './components/SettingsModal'
 import { useMembers } from './lib/members'
+import { checkSession, consumeLoginFragment, LOGIN_ERRORS, loginUrl, readToken, sessionFromToken, storeToken } from './lib/auth'
 import { generatePuzzle, monthlyPuzzle, worldRacePuzzle, WORLD_RACE_EDITION } from './lib/generator'
 import type { Puzzle } from './lib/generator'
 import { gridClues } from './lib/nonogram'
@@ -44,6 +45,10 @@ export default function App() {
   const [playing, setPlaying] = useState<Playing | null>(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  // Sesión con Discord (vía el Worker de Gaming Zone); si no hay, se puede entrar escribiendo un nombre
+  const [token, setToken] = useState<string | null>(() => readToken())
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const session = sessionFromToken(token)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { members } = useMembers()
   const { prefs, tracks, setMusicVolume, setSfxVolume, setTrack, startMusic } = useAudio()
@@ -58,6 +63,42 @@ export default function App() {
     document.addEventListener('click', onClick)
     return () => document.removeEventListener('click', onClick)
   }, [])
+
+  // Al volver de Discord
+  useEffect(() => {
+    const r = consumeLoginFragment()
+    if (!r) return
+    if (r.token && sessionFromToken(r.token)) {
+      storeToken(r.token)
+      setToken(r.token)
+    } else setLoginError(LOGIN_ERRORS[r.error ?? ''] ?? LOGIN_ERRORS.exchange)
+  }, [])
+
+  // Si el Worker dice que la sesión ya no vale, se cierra
+  useEffect(() => {
+    if (!token) return
+    let off = false
+    checkSession(token).then((ok) => {
+      if (!ok && !off) {
+        storeToken(null)
+        setToken(null)
+        setLoginError('Tu sesión venció. Iniciá sesión de nuevo.')
+      }
+    })
+    return () => {
+      off = true
+    }
+  }, [token])
+
+  // Con sesión, el perfil sale de Discord (el avatar llega cuando carga la lista de miembros)
+  useEffect(() => {
+    if (!session) return
+    const m = members.find((x) => x.id === session.id)
+    const p = { id: session.id, name: m?.name ?? session.name, avatar: m?.avatar ?? null }
+    setProfile((cur) => (cur && cur.id === p.id && cur.name === p.name && cur.avatar === p.avatar ? cur : p))
+    if (profile?.id !== session.id) setSaved(loadSaved(profileKey(p)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.name, members])
 
   const match = findAvatar(draft, members)
   const hints = match ? [] : suggest(draft, members)
@@ -123,6 +164,8 @@ export default function App() {
             onSettings={() => setSettingsOpen(true)}
             onMenu={screen === 'menu' ? undefined : () => setScreen('menu')}
             onLogout={() => {
+              storeToken(null)
+              setToken(null)
               setProfile(null)
               setDraft('')
               setScreen('menu')
@@ -182,6 +225,9 @@ export default function App() {
           </div>
           <form className="card" onSubmit={confirm}>
             <h2>¿Quién sos?</h2>
+            <a className="btn primary discord" href={loginUrl()}>Iniciar sesión con Discord</a>
+            {loginError && <p className="err" role="alert">{loginError}</p>}
+            <div className="or"><span>o entrá como invitado</span></div>
             <p className="muted">Escribí tu nombre de Discord para traer tu avatar, o elegí un nombre nuevo.</p>
             <div className="name-row">
               <Avatar name={draft || '?'} src={match?.avatar} size={52} />

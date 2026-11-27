@@ -411,3 +411,8 @@ body {
 .menu-grid { grid-template-columns: repeat(2, minmax(0, 300px)); }
 .seg.wrap { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 .gen-busy { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(var(--bg1), 0.7); font: 700 1.3rem var(--display); color: var(--text); }
+
+/* Login con Discord */
+a.btn.discord { text-decoration: none; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.85rem; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }

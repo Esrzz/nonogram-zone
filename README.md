@@ -22,3 +22,14 @@ npm run dev
 npm run build
 ```
 Para apuntar a otro Worker: `VITE_API_URL=https://... npm run dev`.
+
+## Inicio de sesión con Discord
+
+Usa el mismo inicio de sesión de Gaming Zone (el Worker `gaming-zone-api`). El botón manda a `/auth/login?return=<esta página>`; Discord vuelve al Worker y este te devuelve acá con una sesión firmada (se guarda en `localStorage`, clave `nz-session`). Sin sesión se puede entrar como invitado con un nombre.
+
+Para que el Worker acepte esta página hay que aplicar `docs/worker-multi-sitio.patch` en el repo de Gaming Zone (`git apply`, desde la raíz) y:
+1. En `worker/wrangler.jsonc` → `vars`: `"EXTRA_SITES": "https://TU-NONOGRAM-ZONE"` (varios separados por coma; para probar en local sumá `http://localhost:5173`).
+2. En el portal de Discord no hace falta nada nuevo: la URL de retorno sigue siendo la del Worker (`/auth/callback`).
+3. `npx wrangler deploy` en `worker`.
+
+El parche también hace que el Worker responda CORS a esas páginas (hoy `ALLOWED_ORIGIN` permite una sola).
