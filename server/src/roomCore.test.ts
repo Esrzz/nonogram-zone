@@ -88,6 +88,17 @@ describe('RoomCore', () => {
     expect(r.d.phase).toBe('playing')
   })
 
+  it('no se puede borrar ni pisar lo pintado por otro jugador; sí lo propio', () => {
+    const r = mk()
+    start(r)
+    r.handle('a', { t: 'paint', c: [[3, 1]] })
+    const bad = r.handle('b', { t: 'paint', c: [[3, 0]] })
+    expect(bad).toEqual([{ to: 'b', msg: { t: 'cells', c: [[3, 1, 1]] } }]) // se le devuelve el valor real
+    expect(r.handle('b', { t: 'paint', c: [[3, 2]] })).toHaveLength(1)
+    expect(r.d.game!.cells[3]).toBe(1)
+    expect(cells(r.handle('a', { t: 'paint', c: [[3, 0]] }))).toEqual([[3, 0, 0]])
+  })
+
   it('chat: recorta, limita la frecuencia y guarda solo los últimos', () => {
     const r = mk()
     expect(r.handle('a', { t: 'chat', text: '   ' }, 1000)).toEqual([])

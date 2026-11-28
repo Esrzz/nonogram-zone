@@ -211,6 +211,7 @@ export class RoomCore {
     const g = this.d.game
     if (this.d.phase !== 'playing' || !g || !Array.isArray(list)) return []
     const changes: [number, number, number][] = []
+    const refused: [number, number, number][] = []
     const rows = new Set<number>()
     const cols = new Set<number>()
     for (const item of list.slice(0, MAX_PAINT_BATCH)) {
@@ -218,6 +219,11 @@ export class RoomCore {
       const [i, v] = item as [number, number]
       if (!Number.isInteger(i) || i < 0 || i >= g.cells.length || (v !== 0 && v !== 1 && v !== 2)) continue
       const owner = v === 0 ? 0 : p.color + 1
+      // Lo pintado por otro jugador no se puede borrar ni cambiar: se le devuelve el valor real a quien lo intentó
+      if (g.cells[i] === 1 && g.owners[i] !== 0 && g.owners[i] !== p.color + 1) {
+        refused.push([i, 1, g.owners[i]])
+        continue
+      }
       if (g.cells[i] === v && g.owners[i] === owner) continue
       g.cells[i] = v
       g.owners[i] = owner
@@ -225,10 +231,11 @@ export class RoomCore {
       rows.add(Math.floor(i / g.size))
       cols.add(i % g.size)
     }
-    if (!changes.length) return []
+    const back: Out[] = refused.length ? [{ to: p.id, msg: { t: 'cells', c: refused } }] : []
+    if (!changes.length) return back
     for (const r of rows) g.rowOk[r] = this.lineOk(g, 'r', r)
     for (const c of cols) g.colOk[c] = this.lineOk(g, 'c', c)
-    const out: Out[] = [{ to: null, msg: { t: 'cells', c: changes } }]
+    const out: Out[] = [{ to: null, msg: { t: 'cells', c: changes } }, ...back]
     if (g.rowOk.every(Boolean) && g.colOk.every(Boolean)) {
       g.doneAt = now
       this.d.phase = 'done'

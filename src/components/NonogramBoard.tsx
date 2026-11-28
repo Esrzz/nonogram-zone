@@ -187,6 +187,18 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const paint = useRef<Cell | null>(null)
+  // Trazo en curso: celdas cambiadas con su valor anterior. Volver sobre ellas con el mouse las deja como estaban.
+  const trail = useRef<{ i: number; prev: Cell }[]>([])
+  const cellsRef = useRef(cells)
+  cellsRef.current = cells
+  const ownersRef = useRef(owners)
+  ownersRef.current = owners
+  // En multijugador, una celda pintada por otro jugador no se puede tocar
+  const isTheirs = (i: number) => {
+    const sh = sharedRef.current
+    const o = ownersRef.current?.[i] ?? 0
+    return !!sh && cellsRef.current[i] === 1 && o !== 0 && o !== sh.me
+  }
 
   // Vista: zoom con la rueda y desplazamiento arrastrando con la rueda apretada (botón central)
   const boardRef = useRef<HTMLDivElement>(null)
@@ -407,26 +419,44 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
     return i === undefined ? null : Number(i)
   }
 
+  // Pinta una celda del trazo; si ya era parte del trazo, deshace lo que se pintó después de ella
+  const stepCell = (j: number, v: Cell) => {
+    const tr = trail.current
+    const k = tr.findIndex((t) => t.i === j)
+    if (k >= 0) {
+      while (tr.length > k + 1) {
+        const t = tr.pop()!
+        apply(t.i, t.prev)
+      }
+      return
+    }
+    if (isTheirs(j)) return
+    tr.push({ i: j, prev: cellsRef.current[j] })
+    apply(j, v)
+  }
+
   const down = (e: React.PointerEvent, i: number) => {
     if (e.button === 1 || moveMode) return // la rueda apretada (o el modo mover) mueve la vista, no pinta
     e.preventDefault()
+    if (isTheirs(i)) return
     const t: Cell = e.button === 2 ? 2 : 1
     const v: Cell = cells[i] === t ? 0 : t
     paint.current = v
+    trail.current = []
     lock.current = target && lockStroke ? newLock(i, size) : null
     setStroke({ start: i, cur: i, v, x: e.clientX, y: e.clientY })
-    apply(i, v)
+    stepCell(i, v)
   }
   const enter = (i: number) => {
     if (paint.current === null) return
     const lk = lock.current
     if (lk) {
       const line = lockStep(lk, i, size)
-      for (const j of line) apply(j, paint.current)
+      for (const j of line) stepCell(j, paint.current)
       setStroke((st) => (st ? { ...st, cur: lk.last } : st))
       return
     }
-    apply(i, paint.current)
+    stepCell(i, paint.current)
     setStroke((st) => (st ? { ...st, cur: i } : st))
   }
   const stop = () => {
