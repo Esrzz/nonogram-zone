@@ -5,6 +5,8 @@
 	// Una sala = un Durable Object (con almacenamiento SQLite, que entra en el plan gratis)
 	"durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+	// Llama directo al Worker de Gaming Zone (mismo nombre que en su wrangler.jsonc)
+	"services": [{ "binding": "AUTH", "service": "gaming-zone-api" }],
 	"vars": {
 		// Worker de Gaming Zone: confirma quién es cada sesión (GET /auth/me). No hace falta ningún secreto nuevo.
 		"AUTH_API": "https://gaming-zone-api.gamingzone.workers.dev"

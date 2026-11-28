@@ -31,7 +31,10 @@ async function whoIs(env, token) {
   const hit = known.get(token)
   if (hit && hit.until > Date.now()) return hit.user
   try {
-    const res = await fetch(`${env.AUTH_API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+    // Con el binding AUTH se llama directo al Worker de Gaming Zone (un Worker no puede hacer fetch a otro workers.dev
+    // de la misma cuenta: Cloudflare lo bloquea). Sin binding se usa la dirección pública.
+    const init = { headers: { Authorization: `Bearer ${token}` } }
+    const res = env.AUTH ? await env.AUTH.fetch('https://auth.internal/auth/me', init) : await fetch(`${env.AUTH_API}/auth/me`, init)
     if (!res.ok) return null
     const u = await res.json()
     if (!u?.id) return null
