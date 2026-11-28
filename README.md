@@ -42,3 +42,17 @@ El parche también hace que el Worker responda CORS a esas páginas (hoy `ALLOWE
 La primera vez que alguien entra con Discord, la página le pide crear una contraseña (obligatoria; mínimo 6 caracteres). Después, quien entre solo con el nombre de ese perfil tiene que ponerla; los nombres que nunca entraron con Discord siguen entrando libres. Se puede cambiar en Ajustes › Otros.
 
 La contraseña vive en el Worker de Gaming Zone (`worker/src/passwords.js`, rutas `/nz/pw/*`): solo se guarda un hash PBKDF2 con sal en el KV (`pw:<id>`), con límite de 5 intentos fallidos cada 15 minutos por perfil. No hace falta ningún secreto nuevo, solo `wrangler deploy`.
+
+## Semillas
+Al crear un nonograma se muestra su **semilla** (`NZ1-<tamaño>-…`) con botón Copiar. En "Resolver nonogramas" hay un campo **Cargar semilla** para jugar la de otra persona.
+
+## Multijugador (salas con código)
+Desde el menú inicial: **Multijugador** → crear sala (código de 5 letras) o unirse con código. El host elige modo (por ahora **Cooperativo**), tamaño (hasta 50×50) y máximo de jugadores; cada jugador elige su color en el lobby. El chat queda a la derecha. Hace falta sesión iniciada.
+
+Las salas corren en un Worker aparte con Durable Objects (`server/`):
+```
+cd server && npm install && npx wrangler deploy
+```
+- Variable `AUTH_API` (wrangler.jsonc): URL del Worker de Gaming Zone que valida sesiones (`/auth/me`).
+- En la página, `VITE_ROOMS_URL` apunta al Worker de salas (por defecto `https://nonogram-rooms.gamingzone.workers.dev`).
+- Prueba local: `npx wrangler dev --local` dentro de `server/`.

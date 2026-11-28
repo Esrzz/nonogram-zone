@@ -4,6 +4,8 @@ import Avatar from './components/Avatar'
 import Header from './components/Header'
 import CreatePanel from './components/CreatePanel'
 import Menu from './components/Menu'
+import MultiHome from './components/MultiHome'
+import RoomScreen from './components/RoomScreen'
 import NonogramBoard from './components/NonogramBoard'
 import SolvePanel from './components/SolvePanel'
 import PasswordModal from './components/PasswordModal'
@@ -15,6 +17,9 @@ import { checkSession, consumeLoginFragment, LOGIN_ERRORS, loginUrl, readToken, 
 import { generatePuzzle, monthlyPuzzle, worldRacePuzzle, WORLD_RACE_EDITION } from './lib/generator'
 import type { Puzzle } from './lib/generator'
 import { gridClues } from './lib/nonogram'
+import { seedToPuzzle } from './lib/seed'
+import { createRoom } from './lib/roomClient'
+import { CODE_LEN, normalizeCode } from './lib/roomProtocol'
 import { loadHistory, persistHistory } from './lib/history'
 import type { HistoryEntry, HistoryKind } from './lib/history'
 import { loadSaved, persistSaved, profileKey, stringToCells } from './lib/saved'
@@ -29,7 +34,7 @@ interface Profile {
   avatar: string | null
 }
 
-type Screen = 'menu' | 'create' | 'solve' | 'history'
+type Screen = 'menu' | 'create' | 'solve' | 'history' | 'multi'
 
 /** Puzzle en pantalla en el modo resolver; `n` cambia con cada uno para reiniciar el tablero. */
 interface Playing extends Puzzle {
@@ -45,6 +50,9 @@ const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [screen, setScreen] = useState<Screen>('menu')
+  const [roomCode, setRoomCode] = useState<string | null>(null)
+  const [multiBusy, setMultiBusy] = useState(false)
+  const [multiErr, setMultiErr] = useState<string | null>(null)
   const [saved, setSaved] = useState<SavedNonogram[]>([])
   // Dibujo a cargar en el editor; `n` cambia para reiniciar el tablero con ese dibujo
   const [editor, setEditor] = useState<{ n: number; size: number; cells?: Uint8Array }>({ n: 0, size: SIZE_CREATE })
@@ -211,6 +219,7 @@ export default function App() {
     }, 30)
   }
   const newRandom = (size: number) => start(() => generatePuzzle(size), 'Aleatorio', 'random')
+  const loadSeed = (seed: string) => start(() => seedToPuzzle(seed), 'Semilla', 'random')
   const now = new Date()
   const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`
   const playMonthly = () => start(() => monthlyPuzzle(now.getFullYear(), now.getMonth() + 1), `Mensual · ${monthLabel}`, 'monthly')
@@ -250,6 +259,10 @@ export default function App() {
               onWorld={playWorld}
               monthLabel={monthLabel}
               onHistory={() => setScreen('history')}
+              onMulti={() => {
+                setMultiErr(null)
+                setScreen('multi')
+              }}
               solvedCount={history.length}
             />
           )}
@@ -270,6 +283,36 @@ export default function App() {
               </NonogramBoard>
             </main>
           )}
+          {screen === 'multi' &&
+            (roomCode && token && session ? (
+              <RoomScreen
+                key={roomCode}
+                code={roomCode}
+                token={token}
+                meId={session.id}
+                onLeave={() => setRoomCode(null)}
+                onDone={(size, ms) => addHistory({ label: `Cooperativo · sala ${roomCode}`, size, kind: 'coop', ms })}
+              />
+            ) : (
+              <MultiHome
+                hasSession={!!token && !!session}
+                busy={multiBusy}
+                error={multiErr}
+                onCreate={async () => {
+                  if (!token) return
+                  setMultiBusy(true)
+                  setMultiErr(null)
+                  const r = await createRoom(token)
+                  setMultiBusy(false)
+                  if ('error' in r) setMultiErr(r.error)
+                  else setRoomCode(r.code)
+                }}
+                onJoin={(c) => {
+                  const code = normalizeCode(c)
+                  if (code.length === CODE_LEN) setRoomCode(code)
+                }}
+              />
+            ))}
           {screen === 'history' && (
             <HistoryPanel
               name={profile.name}
@@ -291,6 +334,7 @@ export default function App() {
                     solution={playing.solution}
                     logic={playing.logic}
                     onNew={newRandom}
+                    onLoadSeed={loadSeed}
                     edition={playing.edition}
                     onSolved={(ms) => addHistory({ label: playing.label, size: playing.size, kind: playing.kind, ms })}
                   />

@@ -1,3 +1,5 @@
+import { lockStep, newLock } from '../lib/strokeLock'
+import type { StrokeLock } from '../lib/strokeLock'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -44,12 +46,27 @@ export interface BoardCtx {
   zoomBlock: ReactNode
 }
 
+/** Tablero compartido (multijugador): cada celda pintada lleva el color de quien la pintó */
+export interface SharedBoard {
+  /** Colores (hex) por dueño: el dueño 1 usa palette[0], etc. */
+  palette: string[]
+  /** Mi dueño (1–8) */
+  me: number
+  /** Dueños iniciales: un carácter por celda ('0' nadie, '1'–'8') */
+  initialOwners?: string
+  /** Mis cambios, juntados por cuadro: [índice, valor] */
+  onPaint: (changes: [number, number][]) => void
+  /** Registra la función que aplica los cambios de los demás: [índice, valor, dueño] */
+  register: (apply: (changes: [number, number, number][]) => void) => void
+}
+
 interface Props {
   size: number
   /** Dibujo inicial (celdas 0/1) */
   initialCells?: ArrayLike<number>
   /** Si se pasa, es un puzzle a resolver: las pistas son fijas y no se calculan del dibujo */
   target?: { rows: Clue[]; cols: Clue[] }
+  shared?: SharedBoard
   children: (ctx: BoardCtx) => ReactNode
 }
 
@@ -88,9 +105,12 @@ const ClueLine = memo(function ClueLine({ clue, mask, axis, idx, side, onToggle 
  * Todas las celdas. El marcado se arma una sola vez; cuando cambian las celdas solo se tocan en el DOM las que cambiaron
  * (con 22 500 celdas, volver a dibujarlas todas con React tardaba cientos de milisegundos por trazo).
  */
-const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size: number; gridRef: React.RefObject<HTMLDivElement | null> }) {
+const Grid = memo(function Grid({ cells, size, gridRef, owners, palette }: { cells: Cell[]; size: number; gridRef: React.RefObject<HTMLDivElement | null>; owners?: Uint8Array; palette?: string[] }) {
   const first = useRef(cells)
+  const firstOwners = useRef(owners)
   const prev = useRef<Cell[]>(cells)
+  const prevOwners = useRef<Uint8Array | undefined>(owners)
+  const colorOf = (v: number, o: number) => (v === 1 && o > 0 && palette ? palette[o - 1] : undefined)
   const markup = useMemo(() => {
     const init = first.current
     const out = new Array<React.ReactNode>(init.length)
@@ -101,7 +121,7 @@ const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size:
       const sr = (c + 1) % 5 === 0 && c !== size - 1
       const sb = (r + 1) % 5 === 0 && r !== size - 1
       out[i] = (
-        <div key={i} data-i={i} className={`ng-cell${v === 1 ? ' on' : ''}${v === 2 ? ' x' : ''}${sr ? ' sep-r' : ''}${sb ? ' sep-b' : ''}`}>
+        <div key={i} data-i={i} style={colorOf(v, firstOwners.current?.[i] ?? 0) ? { backgroundColor: colorOf(v, firstOwners.current?.[i] ?? 0) } : undefined} className={`ng-cell${v === 1 ? ' on' : ''}${v === 2 ? ' x' : ''}${sr ? ' sep-r' : ''}${sb ? ' sep-b' : ''}`}>
           {v === 2 ? '×' : ''}
         </div>
       )
@@ -111,17 +131,22 @@ const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size:
   useLayoutEffect(() => {
     const el = gridRef.current
     const p = prev.current
-    if (!el || p === cells) return
+    const po = prevOwners.current
+    if (!el || (p === cells && po === owners)) return
     for (let i = 0; i < cells.length; i++) {
       const v = cells[i]
-      if (p[i] === v) continue
+      const o = owners?.[i] ?? 0
+      if (p[i] === v && (po?.[i] ?? 0) === o) continue
       const d = el.children[i] as HTMLElement
       d.classList.toggle('on', v === 1)
       d.classList.toggle('x', v === 2)
       d.textContent = v === 2 ? '×' : ''
+      d.style.backgroundColor = colorOf(v, o) ?? ''
     }
     prev.current = cells
-  }, [cells, gridRef])
+    prevOwners.current = owners
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cells, owners, gridRef])
   return <>{markup}</>
 })
 
@@ -130,13 +155,37 @@ const Grid = memo(function Grid({ cells, size, gridRef }: { cells: Cell[]; size:
  * Clic = rellenar, clic derecho = marca X, arrastrar = pintar.
  * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
-export default function NonogramBoard({ size, initialCells, target, children }: Props) {
+export default function NonogramBoard({ size, initialCells, target, shared, children }: Props) {
   const { bothSideClues: both, autoStrike, lockStroke, autoCross } = useSettings().gameplay
   const zoomMax = zoomMaxFor(size)
   const big = size > BIG_FROM
   const [cells, setCells] = useState<Cell[]>(() =>
-    initialCells ? Array.from(initialCells, (c) => (c === 1 ? 1 : 0) as Cell) : Array<Cell>(size * size).fill(0),
+    initialCells ? Array.from(initialCells, (c) => (c === 1 ? 1 : shared && c === 2 ? 2 : 0) as Cell) : Array<Cell>(size * size).fill(0),
   )
+  // Multijugador: de quién es cada celda y envío de mis cambios (juntados por cuadro)
+  const [owners, setOwners] = useState<Uint8Array | undefined>(() =>
+    shared ? Uint8Array.from(shared.initialOwners ?? '', (c) => Number(c) || 0).slice(0, size * size) : undefined,
+  )
+  const sharedRef = useRef(shared)
+  sharedRef.current = shared
+  const pending = useRef<[number, number][]>([])
+  const flushing = useRef(0)
+  useEffect(() => {
+    shared?.register((changes) => {
+      setCells((prev) => {
+        const next = prev.slice()
+        for (const [i, v] of changes) next[i] = v as Cell
+        return next
+      })
+      setOwners((prev) => {
+        const next = prev ? prev.slice() : new Uint8Array(size * size)
+        for (const [i, , o] of changes) next[i] = o
+        return next
+      })
+    })
+    return () => cancelAnimationFrame(flushing.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const paint = useRef<Cell | null>(null)
 
   // Vista: zoom con la rueda y desplazamiento arrastrando con la rueda apretada (botón central)
@@ -153,7 +202,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
   // Trazo en curso: sirve para mostrar cuántas celdas lleva la línea que se está pintando
   const [stroke, setStroke] = useState<{ start: number; cur: number; v: Cell; x: number; y: number } | null>(null)
   // Trazo bloqueado (solo al resolver): origen, eje elegido y última celda pintada
-  const lock = useRef<{ r0: number; c0: number; axis: 'h' | 'v' | null; last: number } | null>(null)
+  const lock = useRef<StrokeLock | null>(null)
   const live = useRef({ zoom: 1, off: { x: 0, y: 0 }, vs: { w: 0, h: 0 } })
   live.current = { zoom, off, vs }
 
@@ -329,6 +378,23 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     clues.cols.map((c, i) => <ClueLine key={i} clue={c} axis="c" idx={i} side={side} mask={maskFor('c', i, c)} onToggle={strike} />)
 
   const apply = (i: number, v: Cell) => {
+    const sh = sharedRef.current
+    if (sh) {
+      setOwners((prev) => {
+        const next = prev ? prev.slice() : new Uint8Array(size * size)
+        next[i] = v === 0 ? 0 : sh.me
+        return next
+      })
+      pending.current.push([i, v])
+      if (!flushing.current) {
+        flushing.current = requestAnimationFrame(() => {
+          flushing.current = 0
+          const batch = pending.current
+          pending.current = []
+          if (batch.length) sharedRef.current?.onPaint(batch)
+        })
+      }
+    }
     setCells((prev) => {
       if (prev[i] === v) return prev
       const next = prev.slice()
@@ -347,7 +413,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     const t: Cell = e.button === 2 ? 2 : 1
     const v: Cell = cells[i] === t ? 0 : t
     paint.current = v
-    lock.current = target && lockStroke ? { r0: Math.floor(i / size), c0: i % size, axis: null, last: i } : null
+    lock.current = target && lockStroke ? newLock(i, size) : null
     setStroke({ start: i, cur: i, v, x: e.clientX, y: e.clientY })
     apply(i, v)
   }
@@ -355,20 +421,9 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
     if (paint.current === null) return
     const lk = lock.current
     if (lk) {
-      // Se ignora la diagonal: el eje se decide al salir de la primera celda y la celda efectiva es la proyección sobre él
-      const r = Math.floor(i / size)
-      const c = i % size
-      if (r === lk.r0 && c === lk.c0) lk.axis = null
-      else if (lk.axis === null) lk.axis = Math.abs(c - lk.c0) >= Math.abs(r - lk.r0) ? 'h' : 'v'
-      const to = lk.axis === 'v' ? r * size + lk.c0 : lk.axis === 'h' ? lk.r0 * size + c : lk.r0 * size + lk.c0
-      const step = lk.axis === 'v' ? (to > lk.last ? size : -size) : to > lk.last ? 1 : -1
-      // si el mouse salta varias celdas, se rellenan las del medio
-      for (let j = lk.last; ; j += step) {
-        apply(j, paint.current)
-        if (j === to || to === lk.last) break
-      }
-      lk.last = to
-      setStroke((st) => (st ? { ...st, cur: to } : st))
+      const line = lockStep(lk, i, size)
+      for (const j of line) apply(j, paint.current)
+      setStroke((st) => (st ? { ...st, cur: lk.last } : st))
       return
     }
     apply(i, paint.current)
@@ -491,7 +546,7 @@ export default function NonogramBoard({ size, initialCells, target, children }: 
               if (i !== null) enter(i)
             }}
           >
-            <Grid cells={cells} size={size} gridRef={gridRef} />
+            <Grid cells={cells} size={size} gridRef={gridRef} owners={owners} palette={shared?.palette} />
           </div>
         </div>
         {both && (

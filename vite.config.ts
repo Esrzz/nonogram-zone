@@ -4,5 +4,5 @@ import audioManifest from './vite-plugins/audioManifest'
 
 export default defineConfig({
   plugins: [react(), audioManifest()],
-  test: { include: ['src/**/*.test.ts'] },
+  test: { include: ['src/**/*.test.ts', 'server/src/**/*.test.ts'] },
 })

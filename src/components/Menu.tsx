@@ -6,11 +6,12 @@ interface Props {
   onWorld: () => void
   monthLabel: string
   onHistory: () => void
+  onMulti: () => void
   solvedCount: number
 }
 
 /** Pantalla que aparece al elegir perfil: crear o resolver nonogramas. */
-export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld, monthLabel, onHistory, solvedCount }: Props) {
+export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld, monthLabel, onHistory, onMulti, solvedCount }: Props) {
   return (
     <main className="stage">
       <div className="brandline">
@@ -18,6 +19,12 @@ export default function Menu({ savedCount, onCreate, onSolve, onMonthly, onWorld
         <h1>Nonogram Zone</h1>
       </div>
       <div className="menu-grid">
+        <button className="menu-card wide" onClick={onMulti}>
+          <span className="menu-icon" aria-hidden="true">👥</span>
+          <strong>Multijugador</strong>
+          <span className="muted">Creá una sala con código o unite a la de un amigo. Cooperativo: pinten juntos el mismo nonograma, hasta 50×50, con chat.</span>
+          <span className="menu-meta">Requiere iniciar sesión</span>
+        </button>
         <button className="menu-card" onClick={onCreate}>
           <span className="menu-icon" aria-hidden="true">✎</span>
           <strong>Crear nonogramas</strong>

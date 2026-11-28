@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { solve } from '../lib/nonogram'
 import type { SolveResult } from '../lib/nonogram'
 import { cellsToString } from '../lib/saved'
+import { encodeSeed } from '../lib/seed'
 import type { SavedNonogram } from '../lib/saved'
 import { GOOD_MAX, GOOD_MIN } from './NonogramBoard'
 import type { BoardCtx } from './NonogramBoard'
@@ -43,6 +44,17 @@ export default function CreatePanel({ ctx, size, saved, onSave, onLoad, onPlay, 
   const report = shown && shown.cells === cells ? shown.report : null
   const [name, setName] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const seed = filled > 0 ? encodeSeed(cells, size) : ''
+  const copySeed = async () => {
+    try {
+      await navigator.clipboard.writeText(seed)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* sin permiso: se puede copiar a mano del cuadro */
+    }
+  }
 
   const verify = () => {
     const t0 = performance.now()
@@ -109,6 +121,14 @@ export default function CreatePanel({ ctx, size, saved, onSave, onLoad, onPlay, 
       <button className="btn ghost" disabled={filled === 0 && cells.every((c) => c === 0)} onClick={ctx.clear}>
         Limpiar tablero
       </button>
+
+      <div className="ng-sep" />
+      <h3>Semilla para compartir</h3>
+      <p className="muted small">Pasásela a otra persona: en Resolver nonogramas puede pegarla en "Cargar semilla" y jugar tu dibujo.</p>
+      <div className="save-row">
+        <input className="input sm seed-input" readOnly value={seed} placeholder="Pintá algo para ver la semilla" onFocus={(e) => e.currentTarget.select()} aria-label="Semilla del nonograma" />
+        <button className="btn ghost" disabled={!seed} onClick={copySeed}>{copied ? '¡Copiada!' : 'Copiar'}</button>
+      </div>
 
       <div className="ng-sep" />
       <h3>Guardar en mi perfil</h3>

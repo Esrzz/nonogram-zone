@@ -1,6 +1,6 @@
 import { loadJson, saveJson } from './storage'
 
-export type HistoryKind = 'random' | 'saved' | 'monthly' | 'world'
+export type HistoryKind = 'random' | 'saved' | 'monthly' | 'world' | 'coop'
 
 /** Un nonograma resuelto, anotado en el perfil. */
 export interface HistoryEntry {
@@ -16,7 +16,7 @@ export interface HistoryEntry {
 }
 
 export const MAX_HISTORY = 300
-const KINDS: HistoryKind[] = ['random', 'saved', 'monthly', 'world']
+const KINDS: HistoryKind[] = ['random', 'saved', 'monthly', 'world', 'coop']
 const storageKey = (key: string) => `nz-history:${key}`
 
 export function loadHistory(key: string): HistoryEntry[] {
