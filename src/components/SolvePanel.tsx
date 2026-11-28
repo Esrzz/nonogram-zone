@@ -102,6 +102,7 @@ export default function SolvePanel({ ctx, size, label, solution, logic, onNew, o
         </div>
       )}
       {ctx.zoomBlock}
+      <button className="btn ghost" onClick={ctx.undo} disabled={!ctx.canUndo} title="Revertir tu último cambio">↶ Revertir último cambio</button>
       {!edition && (
         <>
       <h3>Nuevo aleatorio</h3>

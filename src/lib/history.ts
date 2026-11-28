@@ -30,6 +30,25 @@ export function loadHistory(key: string): HistoryEntry[] {
   )
 }
 
+/**
+ * Carga el historial del perfil y le suma el que se guardó antes bajo otra clave (por ejemplo, cuando se jugó como invitado
+ * con el mismo nombre y después se entró con Discord, el perfil pasa a tener otra clave y parecía vacío).
+ */
+export function loadHistoryMerged(key: string, legacyKeys: string[]): HistoryEntry[] {
+  const main = loadHistory(key)
+  const seen = new Set(main.map((e) => e.id))
+  const all = [...main]
+  for (const k of legacyKeys) {
+    if (k === key) continue
+    for (const e of loadHistory(k)) if (!seen.has(e.id)) (seen.add(e.id), all.push(e))
+  }
+  if (all.length === main.length) return main
+  all.sort((a, b) => b.at - a.at)
+  const out = all.slice(0, MAX_HISTORY)
+  persistHistory(key, out)
+  return out
+}
+
 export const persistHistory = (key: string, list: HistoryEntry[]): boolean => saveJson(storageKey(key), list.slice(0, MAX_HISTORY))
 
 /** Mejor tiempo por tamaño (solo cuenta los que tienen tiempo medido). */

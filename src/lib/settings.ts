@@ -3,10 +3,15 @@
  * Misma estructura que Monopolio del janeo, sin vista 3D y sin atajos definidos todavía.
  */
 
-export type HotkeyAction = never
+import { BINDING_RE } from './hotkeys'
 
-/** Acciones con atajo de teclado. Por ahora no hay ninguna. */
-export const HOTKEY_ACTIONS: { id: HotkeyAction; label: string }[] = []
+export type HotkeyAction = 'undo'
+
+/** Acciones con atajo (teclado o botón extra del mouse) */
+export const HOTKEY_ACTIONS: { id: HotkeyAction; label: string; hint: string }[] = [
+  { id: 'undo', label: 'Revertir último cambio', hint: 'Deshace tus trazos, uno por uno, hasta el inicio del nonograma.' },
+]
+export const DEFAULT_HOTKEYS: Record<HotkeyAction, string> = { undo: 'Mouse3' }
 
 export const UI_SCALE_MIN = 75
 export const UI_SCALE_MAX = 125
@@ -40,19 +45,21 @@ export interface Settings {
     autoCross: boolean
     /** Colores: Modo GZ (violeta) o Modo oscuro (negro y blanco) */
     theme: Theme
+    /** Atajos personalizados (ver hotkeys.ts) */
+    hotkeys: Record<HotkeyAction, string>
   }
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   v: 1,
   audio: { musicVolume: 0.5, sfxVolume: 0.7, trackFile: null },
-  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false, autoStrike: false, lockStroke: true, autoCross: false, theme: 'gz' },
+  gameplay: { uiScale: 100, hotkeysEnabled: true, bothSideClues: false, autoStrike: false, lockStroke: true, autoCross: false, theme: 'gz', hotkeys: { ...DEFAULT_HOTKEYS } },
 }
 
 export const cloneSettings = (s: Settings): Settings => ({
   v: 1,
   audio: { ...s.audio },
-  gameplay: { ...s.gameplay },
+  gameplay: { ...s.gameplay, hotkeys: { ...s.gameplay.hotkeys } },
 })
 
 const num = (v: unknown, min: number, max: number, fallback: number): number =>
@@ -64,6 +71,7 @@ export function sanitizeSettings(input: unknown): Settings {
   const o = (input && typeof input === 'object' ? input : {}) as Record<string, any>
   const audio = (o.audio && typeof o.audio === 'object' ? o.audio : {}) as Record<string, unknown>
   const gp = (o.gameplay && typeof o.gameplay === 'object' ? o.gameplay : {}) as Record<string, unknown>
+  const hk = (gp.hotkeys && typeof gp.hotkeys === 'object' ? gp.hotkeys : {}) as Record<string, unknown>
   const scale = Math.round(num(gp.uiScale, UI_SCALE_MIN, UI_SCALE_MAX, d.gameplay.uiScale) / UI_SCALE_STEP) * UI_SCALE_STEP
   return {
     v: 1,
@@ -80,6 +88,9 @@ export function sanitizeSettings(input: unknown): Settings {
       lockStroke: typeof gp.lockStroke === 'boolean' ? gp.lockStroke : d.gameplay.lockStroke,
       autoCross: typeof gp.autoCross === 'boolean' ? gp.autoCross : d.gameplay.autoCross,
       theme: gp.theme === 'dark' || gp.theme === 'gz' ? gp.theme : d.gameplay.theme,
+      hotkeys: {
+        undo: typeof hk.undo === 'string' && BINDING_RE.test(hk.undo) ? hk.undo : DEFAULT_HOTKEYS.undo,
+      },
     },
   }
 }

@@ -263,7 +263,7 @@ export default function SettingsModal({
                   <span className="setting-value">{gameplay.autoCross ? 'Sí' : 'No'}</span>
                 </label>
                 <div className="check" style={{ justifyContent: 'space-between' }}>
-                  <span>Al tachar todas las pistas de una fila o columna (o tocar una pista de una línea ya completa), se marcan con × las celdas vacías que quedan</span>
+                  <span>Al hacer clic en una pista para tacharla y dejar la línea completa (o tocar una pista de una línea ya coincidente), se marcan con × las celdas vacías que quedan</span>
                   <button
                     type="button"
                     role="switch"
@@ -273,7 +273,7 @@ export default function SettingsModal({
                     onClick={() => updateSettings((s) => { s.gameplay.autoCross = !s.gameplay.autoCross })}
                   />
                 </div>
-                <p className="setting-hint">Con el tachado automático activado, también se completan solas las cruces cuando una línea coincide con sus pistas.</p>
+                <p className="setting-hint">Solo actúa cuando vos tachás una pista con un clic; nunca por sí solo.</p>
               </div>
 
               <div className="setting-row">

@@ -20,9 +20,9 @@ import { gridClues } from './lib/nonogram'
 import { seedToPuzzle } from './lib/seed'
 import { createRoom } from './lib/roomClient'
 import { CODE_LEN, normalizeCode } from './lib/roomProtocol'
-import { loadHistory, persistHistory } from './lib/history'
+import { loadHistoryMerged, persistHistory } from './lib/history'
 import type { HistoryEntry, HistoryKind } from './lib/history'
-import { loadSaved, persistSaved, profileKey, stringToCells } from './lib/saved'
+import { legacyKeys, loadSavedMerged, persistSaved, profileKey, stringToCells } from './lib/saved'
 import type { SavedNonogram } from './lib/saved'
 import { findAvatar, NAME_MAX, suggest, validName } from './lib/profile'
 import { play as playSfx } from './lib/sfx'
@@ -117,7 +117,7 @@ export default function App() {
     const m = members.find((x) => x.id === session.id)
     const p = { id: session.id, name: m?.name ?? session.name, avatar: m?.avatar ?? null }
     setProfile((cur) => (cur && cur.id === p.id && cur.name === p.name && cur.avatar === p.avatar ? cur : p))
-    if (profile?.id !== session.id) setSaved(loadSaved(profileKey(p)))
+    if (profile?.id !== session.id) setSaved(loadSavedMerged(profileKey(p), legacyKeys(profileKey(p), p.name, session.name, draft)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.name, members])
 
@@ -178,14 +178,15 @@ export default function App() {
     const m = findAvatar(draft, members)
     const p = { id: m?.id ?? null, name: m?.name ?? draft.trim(), avatar: m?.avatar ?? null }
     setProfile(p)
-    setSaved(loadSaved(profileKey(p)))
+    setSaved(loadSavedMerged(profileKey(p), legacyKeys(profileKey(p), p.name, draft)))
     setScreen('menu')
     startMusic() // la música arranca con la primera interacción
   }
 
   const key = profile ? profileKey(profile) : ''
   useEffect(() => {
-    setHistory(key ? loadHistory(key) : [])
+    setHistory(key ? loadHistoryMerged(key, legacyKeys(key, profile?.name ?? '', session?.name ?? '')) : [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
   const addHistory = (e: Omit<HistoryEntry, 'id' | 'at'>) => {
     const next = [{ ...e, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: Date.now() }, ...history]

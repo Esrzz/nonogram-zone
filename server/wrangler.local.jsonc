@@ -1,0 +1,13 @@
+// Solo para probar en local (sin el binding al Worker de Gaming Zone): npx wrangler dev --local -c wrangler.local.jsonc --var AUTH_API:<url>
+{
+	"name": "nonogram-rooms-dev",
+	"main": "src/index.js",
+	"compatibility_date": "2025-06-01",
+	// Una sala = un Durable Object (con almacenamiento SQLite, que entra en el plan gratis)
+	"durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+	"vars": {
+		// Worker de Gaming Zone: confirma quién es cada sesión (GET /auth/me). No hace falta ningún secreto nuevo.
+		"AUTH_API": "https://gaming-zone-api.gamingzone.workers.dev"
+	}
+}

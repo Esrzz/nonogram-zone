@@ -35,6 +35,26 @@ export function loadSaved(key: string): SavedNonogram[] {
   }
 }
 
+/** Claves antiguas del mismo perfil: el nombre (como invitado) con el que se jugó antes de entrar con Discord */
+export const legacyKeys = (key: string, ...names: string[]): string[] =>
+  key.startsWith('n:') ? [] : [...new Set(names.filter(Boolean).map((n) => `n:${normalizeName(n)}`))]
+
+/** Como loadSaved, sumando lo guardado bajo las claves antiguas del perfil */
+export function loadSavedMerged(key: string, legacy: string[]): SavedNonogram[] {
+  const main = loadSaved(key)
+  const seen = new Set(main.map((e) => e.id))
+  const all = [...main]
+  for (const k of legacy) {
+    if (k === key) continue
+    for (const e of loadSaved(k)) if (!seen.has(e.id)) (seen.add(e.id), all.push(e))
+  }
+  if (all.length === main.length) return main
+  all.sort((a, b) => b.createdAt - a.createdAt)
+  const out = all.slice(0, MAX_SAVED)
+  persistSaved(key, out)
+  return out
+}
+
 export function persistSaved(key: string, list: SavedNonogram[]): boolean {
   try {
     localStorage.setItem(storageKey(key), JSON.stringify(list.slice(0, MAX_SAVED)))

@@ -55,4 +55,7 @@ cd server && npm install && npx wrangler deploy
 ```
 - Variable `AUTH_API` (wrangler.jsonc): URL del Worker de Gaming Zone que valida sesiones (`/auth/me`).
 - En la página, `VITE_ROOMS_URL` apunta al Worker de salas (por defecto `https://nonogram-rooms.gamingzone.workers.dev`).
-- Prueba local: `npx wrangler dev --local` dentro de `server/`.
+- Prueba local: `npx wrangler dev --local -c wrangler.local.jsonc --var AUTH_API:<url>` dentro de `server/` (esa config no usa el binding).
+
+## Revertir cambios y atajos
+Botón "↶ Revertir último cambio" (y atajo, por defecto el botón lateral del mouse "atrás"; se cambia en Ajustes → Jugabilidad → Personalizar atajos). Guarda todos los trazos del nonograma; en multijugador cada jugador revierte solo los suyos.

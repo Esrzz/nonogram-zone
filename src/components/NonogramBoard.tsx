@@ -1,4 +1,5 @@
 import { lockStep, newLock } from '../lib/strokeLock'
+import { isMouseBinding, keyBinding, mouseBinding } from '../lib/hotkeys'
 import type { StrokeLock } from '../lib/strokeLock'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -41,6 +42,9 @@ export interface BoardCtx {
   /** Solo en modo resolver: lo pintado cumple todas las pistas */
   solved: boolean
   clear: () => void
+  /** Revierte mi último cambio (solo los propios) */
+  undo: () => void
+  canUndo: boolean
   /** Reemplaza el dibujo (celdas 0/1) */
   fill: (cells: ArrayLike<number>) => void
   zoomBlock: ReactNode
@@ -67,8 +71,14 @@ interface Props {
   /** Si se pasa, es un puzzle a resolver: las pistas son fijas y no se calculan del dibujo */
   target?: { rows: Clue[]; cols: Clue[] }
   shared?: SharedBoard
+  /** Identifica el nonograma para conservar el historial de cambios aunque el tablero se vuelva a armar (reconexión) */
+  historyKey?: string
   children: (ctx: BoardCtx) => ReactNode
 }
+
+/** Un cambio deshacible: celda, valor anterior y valor que puse */
+type Edit = [number, number, number]
+const undoStore = new Map<string, Edit[][]>()
 
 interface LineProps {
   clue: number[]
@@ -155,8 +165,9 @@ const Grid = memo(function Grid({ cells, size, gridRef, owners, palette }: { cel
  * Clic = rellenar, clic derecho = marca X, arrastrar = pintar.
  * Rueda = zoom; rueda apretada y arrastrar = mover. Las pistas viven en tiras fijas a los costados.
  */
-export default function NonogramBoard({ size, initialCells, target, shared, children }: Props) {
-  const { bothSideClues: both, autoStrike, lockStroke, autoCross } = useSettings().gameplay
+export default function NonogramBoard({ size, initialCells, target, shared, historyKey, children }: Props) {
+  const settings = useSettings().gameplay
+  const { bothSideClues: both, autoStrike, lockStroke, autoCross } = settings
   const zoomMax = zoomMaxFor(size)
   const big = size > BIG_FROM
   const [cells, setCells] = useState<Cell[]>(() =>
@@ -189,6 +200,14 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
   const paint = useRef<Cell | null>(null)
   // Trazo en curso: celdas cambiadas con su valor anterior. Volver sobre ellas con el mouse las deja como estaban.
   const trail = useRef<{ i: number; prev: Cell }[]>([])
+  const localStack = useRef<Edit[][]>([])
+  const stack = historyKey ? (undoStore.get(historyKey) ?? (undoStore.set(historyKey, []), undoStore.get(historyKey)!)) : localStack.current
+  const [undoCount, setUndoCount] = useState(stack.length)
+  const pushEdits = (edits: Edit[]) => {
+    if (!edits.length) return
+    stack.push(edits)
+    setUndoCount(stack.length)
+  }
   const cellsRef = useRef(cells)
   cellsRef.current = cells
   const ownersRef = useRef(owners)
@@ -318,15 +337,17 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
   }
   const lineDone = (axis: 'r' | 'c', i: number) => autoStrike && lineMatches(axis, i)
   // Marca con × las celdas vacías de una fila o columna (no toca las pintadas)
-  const crossLine = (axis: 'r' | 'c', i: number) =>
-    setCells((prev) => {
-      let next: Cell[] | null = null
-      for (let j = 0; j < size; j++) {
-        const idx = axis === 'r' ? i * size + j : j * size + i
-        if (prev[idx] === 0) (next ??= prev.slice())[idx] = 2
+  const crossLine = (axis: 'r' | 'c', i: number) => {
+    const edits: Edit[] = []
+    for (let j = 0; j < size; j++) {
+      const idx = axis === 'r' ? i * size + j : j * size + i
+      if (cellsRef.current[idx] === 0) {
+        edits.push([idx, 0, 2])
+        apply(idx, 2)
       }
-      return next ?? prev
-    })
+    }
+    pushEdits(edits)
+  }
   const isStruck = (axis: 'r' | 'c', i: number, k: number) => {
     const key = `${axis}${i}:${k}`
     return manual.has(key) || (lineDone(axis, i) && !autoOff.has(key))
@@ -350,26 +371,6 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
       if (autoCross && (allStruck || lineMatches(axis, i))) crossLine(axis, i)
     }
   }
-  // Con tachado automático + cruces: cuando una línea pasa a coincidir con sus pistas, se completan solas sus cruces
-  const crossed = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    if (!target || !autoStrike || !autoCross) {
-      crossed.current.clear()
-      return
-    }
-    const seen = new Set<string>()
-    for (const axis of ['r', 'c'] as const) {
-      const n = axis === 'r' ? size : size
-      for (let i = 0; i < n; i++) {
-        if (!lineMatches(axis, i)) continue
-        const key = `${axis}${i}`
-        seen.add(key)
-        if (!crossed.current.has(key)) crossLine(axis, i)
-      }
-    }
-    crossed.current = seen
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [painted, autoStrike, autoCross])
   // Una línea que deja de estar completa olvida sus "destachados"
   useEffect(() => {
     if (autoOff.size === 0) return
@@ -460,6 +461,11 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
     setStroke((st) => (st ? { ...st, cur: i } : st))
   }
   const stop = () => {
+    if (paint.current !== null && trail.current.length) {
+      const v = paint.current
+      pushEdits(trail.current.map((t) => [t.i, t.prev, v] as Edit))
+    }
+    trail.current = []
     paint.current = null
     lock.current = null
     setStroke(null)
@@ -478,7 +484,7 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
     const step = horizontal ? 1 : size
     const inLine = (j: number) => (horizontal ? Math.floor(j / size) === Math.floor(stroke.cur / size) : j % size === stroke.cur % size)
     if (stroke.v === 0) {
-      const n = Math.max(Math.abs(dr), Math.abs(dc)) + 1
+      const n = trail.current.length // celdas que lleva borradas; al volver sobre el trazo baja y desaparece
       if (n >= 2) tip = `−${n}`
     } else {
       let n = 1
@@ -487,6 +493,40 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
       if (n >= 2) tip = `${stroke.v === 2 ? '×' : ''}${n}`
     }
   }
+
+  const undo = () => {
+    const edits = stack.pop()
+    setUndoCount(stack.length)
+    if (!edits) return
+    for (let k = edits.length - 1; k >= 0; k--) {
+      const [i, prev, next] = edits[k]
+      if (cellsRef.current[i] !== next || isTheirs(i)) continue // ya cambió (o es de otro jugador): no se toca
+      apply(i, prev as Cell)
+    }
+  }
+  const undoRef = useRef(undo)
+  undoRef.current = undo
+  const bind = settings.hotkeys.undo
+  useEffect(() => {
+    if (!settings.hotkeysEnabled) return
+    const inField = (t: EventTarget | null) => t instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)
+    const onKey = (e: KeyboardEvent) => {
+      if (isMouseBinding(bind) || inField(e.target) || keyBinding(e) !== bind) return
+      e.preventDefault()
+      undoRef.current()
+    }
+    const onMouse = (e: MouseEvent) => {
+      if (!isMouseBinding(bind) || mouseBinding(e) !== bind) return
+      e.preventDefault() // evita que el botón lateral navegue hacia atrás en el navegador
+      if (e.type === 'mousedown') undoRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    for (const t of ['mousedown', 'mouseup', 'auxclick'] as const) window.addEventListener(t, onMouse)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      for (const t of ['mousedown', 'mouseup', 'auxclick'] as const) window.removeEventListener(t, onMouse)
+    }
+  }, [bind, settings.hotkeysEnabled])
 
   const cellPx = vs.w && size ? (vs.w / size) * zoom : 0 // tamaño real de una celda en pantalla
 
@@ -498,8 +538,23 @@ export default function NonogramBoard({ size, initialCells, target, shared, chil
     total,
     pct,
     solved,
-    clear: () => setCells(Array<Cell>(total).fill(0)),
-    fill: (c) => setCells(Array.from(c, (v) => (v === 1 ? 1 : 0) as Cell)),
+    undo,
+    canUndo: undoCount > 0,
+    clear: () => {
+      const edits: Edit[] = []
+      cellsRef.current.forEach((v, i) => v !== 0 && !isTheirs(i) && edits.push([i, v, 0]))
+      for (const [i] of edits) apply(i, 0)
+      pushEdits(edits)
+    },
+    fill: (c) => {
+      const edits: Edit[] = []
+      for (let i = 0; i < total; i++) {
+        const want = c[i] === 1 ? 1 : 0
+        if (cellsRef.current[i] !== want && !isTheirs(i)) edits.push([i, cellsRef.current[i], want])
+      }
+      for (const [i, , n] of edits) apply(i, n as Cell)
+      pushEdits(edits)
+    },
     zoomBlock: (
       <>
         <div className="ng-zoom">

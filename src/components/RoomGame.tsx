@@ -42,6 +42,7 @@ export default function RoomGame({ room, meId, epoch, skew, send, register, onLe
     <main className="stage play">
       <NonogramBoard
         key={`${epoch}-${game.startedAt}`}
+        historyKey={`${room.code}-${game.startedAt}-${meId}`}
         size={game.size}
         initialCells={initial}
         target={{ rows: game.rows, cols: game.cols }}
@@ -53,7 +54,7 @@ export default function RoomGame({ room, meId, epoch, skew, send, register, onLe
           register,
         }}
       >
-        {() => (
+        {(ctx) => (
           <div className="room-side">
             <div className="card room-info">
               <strong>Sala {room.code}</strong>
@@ -67,6 +68,7 @@ export default function RoomGame({ room, meId, epoch, skew, send, register, onLe
                 ))}
               </ul>
               {done && <p className="ok" role="status">¡Lo completaron juntos en {fmt(elapsed)}!</p>}
+              <button className="btn ghost" onClick={ctx.undo} disabled={!ctx.canUndo || done} title="Revierte tu último cambio (no los de otros jugadores)">↶ Revertir último cambio</button>
               <div className="lobby-actions">
                 {done && isHost && <button className="btn primary" onClick={() => send({ t: 'back' })}>Volver al lobby</button>}
                 {done && !isHost && <p className="muted small">El host puede volver al lobby.</p>}

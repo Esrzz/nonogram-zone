@@ -86,6 +86,7 @@ export default function CreatePanel({ ctx, size, saved, onSave, onLoad, onPlay, 
         Pintado recomendado: {GOOD_MIN}–{GOOD_MAX}% · ahora {Math.round(pct)}%
       </p>
       {ctx.zoomBlock}
+      <button className="btn ghost" onClick={ctx.undo} disabled={!ctx.canUndo} title="Revertir tu último cambio">↶ Revertir último cambio</button>
       <button className="btn primary" onClick={verify}>Verificar solución</button>
       {report && (
         <div className={`ng-report ${report.kind}`} role="status">
